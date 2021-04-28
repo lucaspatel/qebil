@@ -1,0 +1,1081 @@
+ageinyears:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - type: number
+  empty: false
+  field_desc: enter age in years. ***please convert to years from days (viz. mice)
+    and convert back to the format preferred for further analysis
+  is_phi: false
+  required: true
+biologicalsex:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - asexual
+    - female
+    - male
+    - not applicable
+    - not collected
+    - not specified
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter biological sex if applicable
+  is_phi: false
+  required: true
+chromatographyandphase:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - mixed mode (Scherzo SM-C18)
+    - normal phase (HILIC)
+    - not specified
+    - reverse phase (C18)
+    - reverse phase (C8)
+    - reverse phase (Phenyl-Hexyl)
+    - reverse phase (polar-C18)
+    - gas chromatography (DB-5)
+    - 'ML import: not available'
+    - reverse phase (NOS)
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary, please contact the admins
+    for additional options.
+  is_phi: false
+  required: true
+comorbiditylistdoidindex:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - not applicable
+    - no disease reported
+    - not specified
+    - DOID:526|DOID:1596|DOID:635
+    - DOID:526|DOID:1596
+    - DOID:526|DOID:635
+    - DOID:1596|DOID:635
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: if you study contains subjects with more than one disease state, please
+    list all the DOIDs associated with those diseases separated by a ""|""
+  is_phi: false
+  required: true
+country:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - not applicable
+    - not collected
+    - not specified
+    - Afghanistan
+    - Albania
+    - Algeria
+    - Andorra
+    - Angola
+    - Antigua and Barbuda
+    - Argentina
+    - Armenia
+    - Australia
+    - Austria
+    - Azerbaijan
+    - Bahamas
+    - Bahrain
+    - Bangladesh
+    - Barbados
+    - Belarus
+    - Belgium
+    - Belize
+    - Benin
+    - Bhutan
+    - Bolivia
+    - Bosnia and Herzegovina
+    - Botswana
+    - Brazil
+    - Brunei
+    - Bulgaria
+    - Burkina Faso
+    - Burundi
+    - Cabo Verde
+    - Cambodia
+    - Cameroon
+    - Canada
+    - Central African Republic (CAR)
+    - Chad
+    - Chile
+    - China
+    - Colombia
+    - Comoros
+    - Congo, Democratic Republic of the
+    - Congo, Republic of the
+    - Costa Rica
+    - Cote dIvoire
+    - Croatia
+    - Cuba
+    - Cyprus
+    - Czechia
+    - Denmark
+    - Djibouti
+    - Dominica
+    - Dominican Republic
+    - Ecuador
+    - Egypt
+    - El Salvador
+    - Equatorial Guinea
+    - Eritrea
+    - Estonia
+    - Eswatini (formerly Swaziland)
+    - Ethiopia
+    - Fiji
+    - Finland
+    - France
+    - Gabon
+    - Gambia
+    - Georgia
+    - Germany
+    - Ghana
+    - Greece
+    - Grenada
+    - Guatemala
+    - Guinea
+    - Guinea-Bissau
+    - Guyana
+    - Haiti
+    - Honduras
+    - Hungary
+    - Iceland
+    - India
+    - Indonesia
+    - Iran
+    - Iraq
+    - Ireland
+    - Israel
+    - Italy
+    - Jamaica
+    - Japan
+    - Jordan
+    - Kazakhstan
+    - Kenya
+    - Kiribati
+    - Kosovo
+    - Kuwait
+    - Kyrgyzstan
+    - Laos
+    - Latvia
+    - Lebanon
+    - Lesotho
+    - Liberia
+    - Libya
+    - Liechtenstein
+    - Lithuania
+    - Luxembourg
+    - Madagascar
+    - Malawi
+    - Malaysia
+    - Maldives
+    - Mali
+    - Malta
+    - Marshall Islands
+    - Mauritania
+    - Mauritius
+    - Mexico
+    - Micronesia
+    - Moldova
+    - Monaco
+    - Mongolia
+    - Montenegro
+    - Morocco
+    - Mozambique
+    - Myanmar (formerly Burma)
+    - Namibia
+    - Nauru
+    - Nepal
+    - Netherlands
+    - New Zealand
+    - Nicaragua
+    - Niger
+    - Nigeria
+    - North Korea
+    - North Macedonia (formerly Macedonia)
+    - Norway
+    - Oman
+    - Pakistan
+    - Palau
+    - Palestine
+    - Panama
+    - Papua New Guinea
+    - Paraguay
+    - Peru
+    - Philippines
+    - Poland
+    - Portugal
+    - Qatar
+    - Romania
+    - Russia
+    - Rwanda
+    - Saint Kitts and Nevis
+    - Saint Lucia
+    - Saint Vincent and the Grenadines
+    - Samoa
+    - San Marino
+    - Sao Tome and Principe
+    - Saudi Arabia
+    - Senegal
+    - Serbia
+    - Seychelles
+    - Sierra Leone
+    - Singapore
+    - Slovakia
+    - Slovenia
+    - Solomon Islands
+    - Somalia
+    - South Africa
+    - South Korea
+    - South Sudan
+    - Spain
+    - Sri Lanka
+    - Sudan
+    - Suriname
+    - Sweden
+    - Switzerland
+    - Syria
+    - Taiwan
+    - Tajikistan
+    - Tanzania
+    - Thailand
+    - Timor-Leste
+    - Togo
+    - Tonga
+    - Trinidad and Tobago
+    - Tunisia
+    - Turkey
+    - Turkmenistan
+    - Tuvalu
+    - Uganda
+    - Ukraine
+    - United Arab Emirates
+    - United Kingdom
+    - United States of America
+    - Uruguay
+    - Uzbekistan
+    - Vanuatu
+    - Vatican City (Holy See)
+    - Venezuela
+    - Vietnam
+    - Yemen
+    - Zambia
+    - Zimbabwe
+    - Isle of Man
+    - Jersey
+    - Czech Republic
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary based on where the sample
+    was existed or created.
+  is_phi: false
+  required: true
+depthoraltitudemeters:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - max: '400000000'
+    min: '-6300000'
+    type: number
+  empty: false
+  field_desc: enter depths as negative values from sea-level (e.g. -200 m) and altitudes
+    as positive values from sea-level (e.g. 200 m)
+  is_phi: false
+  required: true
+  units: depthoraltitudemeters_units
+depthoraltitudemeters_units:
+  allowed:
+  - m
+  default: m
+  empty: false
+  is_phi: false
+  required: true
+  type: string
+doidcommonname:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - Chagas disease
+    - circadian rhythm disorders
+    - "Crohn's disease"
+    - cystic fibrosis
+    - dental caries
+    - diabetes mellitus
+    - disease NOS
+    - hemorrhagic stroke
+    - hypertension
+    - inflammatory bowel disease
+    - intermittent hypoxia
+    - ischemic stroke
+    - Kawasaki disease
+    - lymphocytic choriomeningitis
+    - no disease reported
+    - not applicable
+    - not specified
+    - obesity
+    - primary bacterial infectious disease
+    - psoriasis
+    - sleep deprivation
+    - ulcerative colitis
+    - gastric ulcer
+    - COVID-19
+    - human immunodeficiency virus infectious disease
+    - "Alzheimer's disease"
+    - HIV-associated neurocognitive disorder
+    - mental depression
+    - acquired immunodeficiency syndrome
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary which uses the DOID ontology
+    (http://disease-ontology.org/). Not all medical conditions are listed in the DOID
+    ontology.
+  is_phi: false
+  required: true
+doidontologyindex:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - DOID:12140
+    - DOID:8778
+    - DOID:1485
+    - DOID:216
+    - DOID:9351
+    - disease NOS
+    - DOID:10763
+    - DOID:0050589
+    - no DOID avaliable
+    - DOID:13378
+    - DOID:12155
+    - no disease reported
+    - not applicable
+    - DOID:9970
+    - DOID:0050338
+    - DOID:8893
+    - DOID:8577
+    - DOID:10808
+    - DOID:0080600
+    - DOID:526
+    - DOID:10652
+    - DOID:1596
+    - DOID:635
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: (no input necessary - automatically generated) UBERON:##### corresponding
+    to disease
+  is_phi: false
+  required: true
+filename:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - type: string
+  empty: false
+  field_desc: filenames as they appear in MassIVE (.mzXML or .mzML)
+  is_phi: false
+  required: true
+healthstatus:
+  allowed:
+  - healthy
+  - chronic illness
+  - acute illness
+  - unhealthy (NOS)
+  - not applicable
+  - not collected
+  - not specified
+  - 'ML import: not available'
+  empty: false
+  field_desc: enter an option from the controlled vocabulary. note the definition
+    of a chronic illness is defined as ""A chronic condition is a human health condition
+    or disease that is persistent or otherwise long-lasting in its effects or a disease
+    that comes with time. The term chronic is often applied when the course of the
+    disease lasts for more than three months.""
+  is_phi: false
+  required: true
+  type: string
+humanpopulationdensity:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - Urban
+    - Rural
+    - not collected
+    - not applicable
+    - not specified
+    - 'ML import: not available'
+    type: string
+  empty: false
+  is_phi: false
+  required: true
+internalstandardsused:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - amitryptiline
+    - amitryptiline;fluconazole
+    - cholic_acid-d4;lithocholic_acid-d4
+    - cocaine-d3
+    - cocaine;cocaine-d3
+    - fluconazole
+    - none
+    - not specified
+    - sulfadimethoxine
+    - sulfadimethoxine;sulfachloropyridazine
+    - sulfamethazine
+    - sulfamethazine;sulfadimethoxine
+    - sulfamethizole
+    - sulfamethizole;sulfachloropyridazine
+    - sulfamethizole;sulfachloropyridazine;sulfadimethoxine;sulfamethazine;coumarin-314;amitryptiline
+    - decahydroquinoline
+    - sulfachloropyridazine
+    - coumarin-314
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary, please contact the admins
+    for additional options.
+  is_phi: false
+  required: true
+ionizationsourceandpolarity:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - atmospheric pressure chemical ionization (negative)
+    - atmospheric pressure chemical ionization (positive)
+    - atmospheric pressure photoionization (negative)
+    - atmospheric pressure photoionization (positive)
+    - electrospray ionization (alternating)
+    - electrospray ionization (negative)
+    - electrospray ionization (positive)
+    - not specified
+    - electron ionization
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary, please contact the admins
+    for additional options.
+  is_phi: false
+  required: true
+latitudeandlongitude:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - type: string
+  empty: false
+  field_desc: enter latitude and longitude separated by a ""|"" . please convert GPS
+    coordinates using a GPS coordinates converter.
+  is_phi: false
+  required: true
+lifestage:
+  allowed:
+  - Adolescence (8 yrs < x <= 18 yrs)
+  - Early Adulthood (18 yrs < x <= 45 yrs)
+  - Early Childhood (2 yrs < x <=8 yrs)
+  - Infancy (<2 yrs)
+  - Later Adulthood (>65 yrs)
+  - Middle Adulthood (45 yrs < x <= 65 yrs)
+  - not applicable
+  - not collected
+  - not specified
+  - 'ML import: not available'
+  empty: false
+  field_desc: (no input necessary - automatically generated)
+  is_phi: false
+  required: true
+  type: string
+massiveid:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - type: string
+  empty: false
+  field_desc: MassIVE ID in which data are stored - please use one ReDU-MS2 sample
+    information template per MassIVE ID
+  is_phi: false
+  required: true
+massspectrometer:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - 6540 Q-TOF LC/MS|MS:1002789
+    - impact HD|MS:1002667
+    - impact|MS:1002077
+    - LTQ Orbitrap XL|MS:1000556
+    - maXis II|MS:1003004
+    - micrOTOF-Q II|MS:1000704
+    - not specified
+    - Q Exactive Plus|MS:1002634
+    - Q Exactive|MS:1001911
+    - Xevo G2 XS Tof|MS:1002729
+    - Agilent GC 6890-MS 5973
+    - Xevo TQ-S|1001792
+    - 6430 Triple Quadrupole LC/MS|MS:1002799
+    - 6490 Triple Quadrupole LC/MS|MS:1002446
+    - Bruker Daltonics esquire series|MS:1001533
+    - Bruker Daltonics maXis series|MS:1001547
+    - Bruker Daltonics micrOTOF series|MS:1001536
+    - LTQ Orbitrap Velos|MS:1001742
+    - LTQ Orbitrap|MS:1000449
+    - LTQ XL|MS:1000854
+    - Quattro Ultima|MS:1000192
+    - Synapt HDMS|MS:1001781
+    - TSQ Quantum Access|MS:1000644
+    - TSQ|MS:1000750
+    - TripleTOF 5600+|MS:1002584
+    - Xevo G2 Tof|MS:1001784
+    - Xevo G2-S QTof|MS:1002276
+    - Xevo TQ-S|MS:1001792
+    - impact II|MS:1002666
+    - Agilent GC 6890|MS:5973
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary, please contact the admins
+    for additional options. ***Uses the ""Mass spectrometry ontology "" (https://www.ebi.ac.uk/ols/ontologies/ms)
+    - please use this resource to suggest new terms
+  is_phi: false
+  required: true
+ncbitaxonomy:
+  anyof:
+  - allowed:
+    - not provided
+    type: string
+  - allowed:
+    - 100032|Keissleriella
+    - 1000415|Amelanchier ovalis
+    - 1000417|Centaurea uniflora
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary - If additional options
+    are required contact the admins. ***if multiple organisms present in a sample
+    - please copy the row (keeping filename and all other terms identical) and change
+    the NCBItaxonomy such that one organism is entered per row.
+  is_phi: false
+  required: true
+qiita_sample_name:
+  anyof:
+  - allowed:
+    - not applicable
+    - not provided
+    type: string
+  - type: string
+  empty: false
+  field_desc: enter the sample_name of a corresponding sequencing file in Qiita (https://qiita.ucsd.edu/)
+    for cross-platform connectivity. The identifier must be exact and prepended with
+    the Qiita identifier. *Note, files names should be entered as present in Qiita
+    which does not allow for underscores or special characters
+  is_phi: false
+  required: true
+sample_name:
+  empty: false
+  is_phi: false
+  regex: ^[a-zA-Z0-9\.]+$
+  required: true
+  type: string
+  unique: true
+samplecollectiondateandtime:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - regex: '^([0-9]{4})(?:-([0-1][0-2])(?:-([0-3][0-9])(?: ([0-2][0-9])(?::([0-5][0-9])(?::([0-5][0-9]))?)?)?)?)?$'
+    type: datetime
+  empty: false
+  field_desc: enter time and date (month/day/year 24:00 time)
+  is_phi: false
+  required: true
+samplecollectionmethod:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - blood draw, capillary
+    - blood draw, venous
+    - blood NOS
+    - extract, solid phase extraction (C18)
+    - liquid
+    - liquid, solid phase extraction (C18)
+    - liquid, solid phase extraction (PPL)
+    - not applicable
+    - not specified
+    - solid material, dried
+    - solid material, fresh
+    - solid material, frozen
+    - solid material, NOS
+    - solid, solid phase extraction (C18)
+    - swabs, dry
+    - swabs, moist (50% EtOH)
+    - urine, 24-hour
+    - urine, NOS
+    - urine, spot
+    - liquid, solid phase extraction (ABN)
+    - swabs, solution (95% EtOH)
+    - swabs, solution (100% EtOH)
+    - in vivo, head space solid phase microextraction
+    - solid material, head space solid phase microextraction
+    - solid material, PDMS patch, head space solid phase microextraction
+    - needle trap device
+    - hollow fiber-liquid phase microextraction
+    - lumbar puncture
+    - 'ML import: not available'
+    - dermaplane
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary, please contact the admins
+    for additional options.
+  is_phi: false
+  required: true
+sampleextractionmethod:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - acetonitrile (100%)
+    - acetonitrile-isopropanol-water (3:3:2)
+    - acetonitrile-methanol (1:1)
+    - acetonitrile-water (7:3)
+    - chloroform-methanol-water (1:3:1)
+    - dichloromethane-methanol (1:1)
+    - dichloromethane-methanol (2:1)
+    - dichloromethane-methanol (3:1)
+    - ethanol (100%)
+    - ethanol-water (1:1)
+    - ethanol-water (19:1)
+    - ethanol-water (9:1)
+    - ethyl acetate (100%)
+    - methanol (100%)
+    - methanol-acetonitrile (3:7)
+    - methanol-water (1:1)
+    - methanol-water (3:2)
+    - methanol-water (4:1)
+    - methanol-water (7:3)
+    - methanol-water (9:1)
+    - not collected
+    - not specified
+    - water (100%) (deg_C_NOS)
+    - water (94_deg_C)
+    - water (95_deg_C)
+    - water-acetonitrile (149:1)
+    - water-acetonitrile (250:1)
+    - ethanol-water (4:1)
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary, please contact the admins
+    for additional options.
+  is_phi: false
+  required: true
+sampletype:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - animal
+    - beverage
+    - blank_analysis
+    - blank_culturemedia
+    - blank_extraction
+    - blank_QC
+    - built_environment
+    - culture_bacterial
+    - culture_fungal
+    - culture_mammalian
+    - culture_multiplespecies
+    - environmental
+    - food
+    - inanimate_object
+    - plant
+    - reference material
+    - algae
+    - microalgae
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary. If additional options
+    are required contact the admins
+  is_phi: false
+  required: true
+sampletypesub1:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - beverage_alcoholic
+    - beverage_nonalcoholic
+    - biofluid
+    - blank_analysis
+    - blank_culturemedia
+    - blank_extraction
+    - blank_QC
+    - clothing
+    - commercial_building
+    - computer
+    - culture_bacterial
+    - culture_fungal
+    - culture_mammalian
+    - culture_multiplespecies
+    - dissolvedorganicmatter_soil
+    - dissolvedorganicmatter_water_saline
+    - food_source_animal
+    - food_source_complex
+    - food_source_fungi
+    - food_source_NOS
+    - food_source_plant
+    - hospital
+    - house
+    - keys
+    - marine_cyanobacteria_insitu
+    - marine_invertebrates_insitu
+    - mobile phone
+    - not applicable
+    - not specified
+    - office
+    - plant_angiospermae
+    - plant_NOS
+    - purse_or_wallet
+    - reference material_animalfeedorsupplement
+    - reference material_chemicalstandard
+    - reference material_collectionmaterial_microtubes
+    - reference material_collectionmaterial_wellplates
+    - reference material_personalcareproduct
+    - research lab
+    - tissue
+    - frog
+    - water_surface
+    - water_ground
+    - water_waste
+    - water_storm
+    - insect
+    - marine_coral
+    - marine_diatom
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary.
+  is_phi: false
+  required: true
+subjectidentifierasrecorded:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - type: string
+  empty: false
+  field_desc: free text, subject ID for your study
+  is_phi: false
+  required: true
+termsofposition:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - Right
+    - Left
+    - Middle
+    - not applicable
+    - not collected
+    - not specified
+    - 'ML import: not available'
+    type: string
+  empty: false
+  field_desc: free text, enter the side of the body (from the subject's reference
+    point)
+  is_phi: false
+  required: true
+uberonbodypartname:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - adrenal gland
+    - anal region
+    - arm skin
+    - axilla skin
+    - bile
+    - bladder organ
+    - blood
+    - blood plasma
+    - blood serum
+    - brain
+    - caecum
+    - calcareous tooth
+    - cardiac vein
+    - colon
+    - coronary artery
+    - digestive tract
+    - duodenum
+    - ear
+    - esophagus
+    - feces
+    - gall bladder
+    - head or neck skin
+    - heart
+    - ileum
+    - jejunum
+    - kidney
+    - liver
+    - lower digestive tract
+    - lung
+    - midgut
+    - milk
+    - nasal cavity
+    - not applicable
+    - not specified
+    - oral cavity
+    - ovary
+    - pancreas
+    - pes
+    - pulmonary artery
+    - pulmonary vein
+    - saliva
+    - skin of body
+    - skin of leg
+    - skin of manus
+    - skin of pes
+    - skin of trunk
+    - spleen
+    - sputum
+    - stomach
+    - thymus
+    - trachea
+    - upper digestive tract
+    - urine
+    - uterine cervix
+    - uterus
+    - vagina
+    - cerebrospinal fluid
+    - sweat
+    - lymph
+    - 'ML import: not available'
+    - amniotic fluid
+    - cerebral cortex
+    - compound eye
+    - gill filament
+    - jejunal epithelium
+    - lamina
+    - larval thorax
+    - multicellular organism
+    - "muscle of Aristotle's lantern"
+    - nuptial pad
+    - ocular surface region
+    - olfactory rosette
+    - organism substance
+    - post-embryonic organism
+    - renal cortex artery
+    - renal medulla
+    - retina
+    - skeletal muscle organ
+    - skin of prepuce of penis
+    - stem of Y-shaped fibrocartilage skeleton of ventral pouch
+    - vitreous humor
+    - water vascular system
+    - zygote stage
+    - skin of back
+    type: string
+  empty: false
+  field_desc: enter an option from the controlled vocabulary which uses the UBERON
+    ontology (https://www.ebi.ac.uk/ols/ontologies/uberon)
+  is_phi: false
+  required: true
+uberonontologyindex:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - allowed:
+    - UBERON:0002369
+    - UBERON:0001353
+    - UBERON:0002427
+    - UBERON:0015474
+    - UBERON:0001970
+    - UBERON:0018707
+    - UBERON:0000178
+    - UBERON:0001969
+    - UBERON:0001977
+    - UBERON:0000955
+    - UBERON:0001153
+    - UBERON:0001091
+    - UBERON:0004148
+    - UBERON:0001155
+    - UBERON:0001621
+    - UBERON:0001555
+    - UBERON:0002114
+    - UBERON:0001690
+    - UBERON:0001043
+    - UBERON:0001988
+    - UBERON:0002110
+    - UBERON:0012180
+    - UBERON:0000948
+    - UBERON:0002116
+    - UBERON:0002115
+    - UBERON:0002113
+    - UBERON:0002107
+    - UBERON:0004907
+    - UBERON:0002048
+    - UBERON:0001045
+    - UBERON:0001913
+    - UBERON:0001707
+    - not applicable
+    - UBERON:0000167
+    - UBERON:0000992
+    - UBERON:0001264
+    - UBERON:0002387
+    - UBERON:0002012
+    - UBERON:0002016
+    - UBERON:0001836
+    - UBERON:0002097
+    - UBERON:0001511
+    - UBERON:0001519
+    - UBERON:0001513
+    - UBERON:0001085
+    - UBERON:0002106
+    - UBERON:0007311
+    - UBERON:0000945
+    - UBERON:0002370
+    - UBERON:0003126
+    - UBERON:0004908
+    - UBERON:0001088
+    - UBERON:0000002
+    - UBERON:0000995
+    - UBERON:0000996
+    - UBERON:0001359
+    - UBERON:0001089
+    - UBERON:0002391
+    - 'ML import: not available'
+    - UBERON:0000173
+    - UBERON:0000956
+    - UBERON:0000018
+    - UBERON:0009120
+    - UBERON:0000400
+    - UBERON:0000957
+    - UBERON:6001741
+    - UBERON:0000468
+    - UBERON:0012621
+    - UBERON:0012243
+    - UBERON:0010409
+    - UBERON:2001428
+    - UBERON:0000463
+    - UBERON:0009953
+    - UBERON:0005268
+    - UBERON:0000362
+    - UBERON:0000966
+    - UBERON:0014892
+    - UBERON:0001471
+    - UBERON:0016628
+    - UBERON:0001797
+    - UBERON:0008251
+    - UBERON:0000106
+    - UBERON:0001068
+    type: string
+  empty: false
+  field_desc: (no input necessary - automatically generated) UBERON:##### corresponding
+    to UBERON body part name
+  is_phi: false
+  required: true
+uniquesubjectid:
+  anyof:
+  - allowed:
+    - not applicable
+    - not collected
+    - not provided
+    type: string
+  - type: string
+  empty: false
+  field_desc: (no input necessary - automatically generated) formula which generates
+    massive ID number & SubjectID
+  is_phi: false
+  required: true
+yearofanalysis:
+  anyof:
+  - allowed:
+    - not collected
+    - not provided
+    type: string
+  - max: '2030'
+    min: '2000'
+    regex: '^([0-9]{4})(?:-([0-1][0-2])(?:-([0-3][0-9])(?: ([0-2][0-9])(?::([0-5][0-9])(?::([0-5][0-9]))?)?)?)?)?$'
+    type: datetime
+  empty: false
+  field_desc: enter the year in which the data were collected, must be a value between
+    2000-2030 (if other years are needed please contact admins)
+  is_phi: false
+  required: true

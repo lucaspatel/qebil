@@ -1,0 +1,615 @@
+import pandas as pd
+from qebil.tools.metadata import (
+    format_prep_type,
+    qiita_format,
+    clean_column_name,
+    scrub_special_chars,
+)
+from qebil.log import logger
+from qebil.fetch import fetch_ebi_info, fetch_ebi_metadata
+
+
+class Study:
+    def __init__(self, md=pd.DataFrame()):
+        """Basic constructor
+
+        Creates a basic Study object with an empty DataFrame
+        unless provided and sets this to be metadata. If a
+        DataFrame is provided, it will look for a the study
+        ID in the study_accession column, set this property,
+        and retrieve the associated EBI details. This allows
+        for previously downloaded metadata to be used without
+        too much overhead by retrieving the otherwise missing
+        details needed to write out the Qiita support files.
+
+        Parameters
+        ----------
+        md : pd.DataFrame
+            dataframe of samples
+
+        Returns
+        -------
+        None
+
+        """
+        self.metadata = md
+        self.prep_columns = []
+        # A bit conflicted about whether this should be here, seems like a kludge?
+        if (
+            "study_accession" in self.metadata.columns
+        ):  # assume this is from EBI
+            unique_study = self.metadata["study_accession"].unique()
+            if len(unique_study) == 1:
+                self.study_id = unique_study[0]
+                self.populate_details()
+
+            else:
+                self.study_id = "not provided"
+                self.details = {}
+        else:
+            self.study_id = "not provided"
+            self.details = {}
+
+    @property
+    def metadata(self):
+        """Gets the metadata being stored as a pandas DataFrame"""
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, md):
+        """Gets the metadata being stored as a pandas DataFrame"""
+        if isinstance(md, pd.DataFrame):
+            self._metadata = md
+        else:
+            raise Exception(
+                "Invalid data type, expected pd.DataFrame"
+                + " received "
+                + str(md)
+                + " of type"
+                + str(type(md))
+            )
+
+    @property
+    def details(self):
+        """Gets the details being stored as a dict"""
+        return self._details
+
+    @details.setter
+    def details(self, det):
+        """Gets the details as a dict, and rejects if other type"""
+        if isinstance(det, dict):
+            self._details = det
+        else:
+            raise ValueError("Expected dict, received " + str(type(det)))
+
+    @property
+    def study_id(self):
+        """Gets the Study ID"""
+        return str(self._study_id)
+
+    @study_id.setter
+    def study_id(self, value):
+        """Sets the Study ID if a string"""
+        if not isinstance(value, str):
+            raise ValueError("Did not receive string, instead: " + str(value))
+        else:
+            self._study_id = value
+
+    @property
+    def prep_columns(self):
+        """Gets the columns to be used to create prep information files"""
+        return self._prep_columns
+
+    @prep_columns.setter
+    def prep_columns(self, value):
+        """Sets the columns to be used to create prep information files"""
+        if not isinstance(value, list):
+            raise ValueError("Did not receive list, instead: " + value)
+        else:
+            self._prep_columns = value
+
+    """ Not used so consider removing
+    @classmethod
+    def from_dict(cls, study_dict, cols=[]):
+        # Allows users to provide dict to create study
+        if isinstance(study_dict, dict):
+            if len(cols) > 0:
+                return cls(
+                    pd.DataFrame.from_dict(
+                        study_dict, orient="index", columns=cols
+                    )
+                )
+            else:
+                return cls(
+                    pd.DataFrame.from_dict(study_dict, orient ='index', columns = list(study_dict.keys()))
+                )
+        else:
+            raise ValueError(
+                "Expected dict, received " + str(type(study_dict))
+            )
+    """
+
+    @classmethod
+    def from_remote(
+        cls,
+        study_id,
+        fields=[],
+        full_details=False,
+        max_samples="",
+        random_subsample=False,
+    ):
+        """Allows creation of study from metadata in EBI/ENA repository
+
+        Parameters
+        ----------
+        study_id: string
+            ID of the EBI/ENA project number, starts with ERP, SRP, PRJ, etc.
+        fields: list
+            the list of metadata columns to retrieve, if empty get all
+        full_details: bool
+            whether to get the sample and run metadata for each sample
+        max_samples: int
+            max number of samples to retrieve, if empty get all
+        random_subsample: bool
+            whether to randomly subsample. Used with max_samples
+
+        Returns
+        -------
+        tmp_study: Study
+            Study object containing metadata and details
+
+        """
+        if not isinstance(study_id, str):
+            raise ValueError("Did not receive string, instead: " + study_id)
+        else:
+
+            md = fetch_ebi_metadata(study_id, fields)
+            md["study_accession"] = study_id
+            tmp_study = cls(md)
+            tmp_study.study_id = study_id
+            # subset the study if the user requests before the time-consuming
+            # per sample/run metadata retrieval
+            if isinstance(max_samples, int):
+                tmp_study.subset_metadata(max_samples, random_subsample)
+
+            tmp_study.populate_details(full_details)
+
+            return tmp_study
+
+    def populate_details(self, full_details=False):
+        """Retrieves the details of a study in EBI/ENA
+
+        Core method to retrieve basic details of an EBI/ENA study,
+        and then detailed information for each sample and run
+        if full_details is set to True and update these for the
+        provided Study object
+
+        Parameters
+        ----------
+        full_details: bool
+            whether to retrieve detailed sample/run info
+
+        Returns
+        -------
+        None
+
+
+        """
+        study_accession = self.study_id
+        study_xml_dict = fetch_ebi_info(study_accession)
+        retrieved_details = False
+
+        if "STUDY_SET" in study_xml_dict.keys():
+            logger.info(study_accession + " is study ID.")
+            retrieved_details = True
+        elif "PROJECT_SET" in study_xml_dict.keys():
+            try:
+                proj_dict = study_xml_dict["PROJECT_SET"]["PROJECT"]
+                secondary_accession = proj_dict["IDENTIFIERS"]["SECONDARY_ID"]
+                study_xml_dict = fetch_ebi_info(secondary_accession)
+                if len(study_xml_dict) > 0:
+                    logger.warning(
+                        study_accession
+                        + " is project ID."
+                        + " Retrieved secondary ID: "
+                        + secondary_accession
+                    )
+                    retrieved_details = True
+            except Exception:
+                logger.error(
+                    "No matching study ID found for project "
+                    + study_accession
+                )
+        else:
+            logger.warning("No study information for " + study_accession)
+
+        if retrieved_details:
+            self.details = study_xml_dict
+
+            if full_details:
+                self.populate_sample_info()
+                self.populate_expt_info()
+                self.populate_sample_names()
+
+    def populate_sample_info(self):
+        """Retrieve information for each sample including experiment/prep information
+
+        This method retrieves a list of samples with the requested study
+        accession from EBI or NCBI including all provided sample and prep
+        metadata in the EBI ENA repository.
+
+        Parameters
+        ----------
+        study_df : pd.DataFrame
+            dataframe of samples for retrieval
+
+        Returns
+        -------
+        study_df: pd.DataFrame
+           dataframe of study information as provided by the chosen repository
+        """
+
+        identifier = "secondary_sample_accession"
+
+        for index, row in self.metadata.iterrows():
+            sample_accession = row[identifier]
+            sample_xml_dict = fetch_ebi_info(sample_accession)
+
+            if "SAMPLE_SET" not in sample_xml_dict.keys():
+                logger.warning(
+                    "No metadata found for sample named: "
+                    + sample_accession
+                    + " omitting."
+                )
+            else:
+                # add sample specific information
+                sample_xml_dict = sample_xml_dict["SAMPLE_SET"]["SAMPLE"]
+                self.metadata.at[
+                    index, "sample_title_specific"
+                ] = sample_xml_dict["TITLE"]
+
+                sn = sample_xml_dict["SAMPLE_NAME"]
+                for s in sn.keys():
+                    col = clean_column_name(s)
+                    self.metadata.at[index, col] = sn[s]
+
+                sa = sample_xml_dict["SAMPLE_ATTRIBUTES"]["SAMPLE_ATTRIBUTE"]
+                for s in sa:
+                    col = s["TAG"]
+                    col = clean_column_name(col)
+                    try:
+                        self.metadata.at[index, col] = s["VALUE"]
+                    except Exception:
+                        logger.warning(
+                            "No value found for sample attribute: "
+                            + col
+                            + "for sample "
+                            + sample_accession
+                            + '. Setting to "not provided".'
+                        )
+                        self.metadata.at[index, col] = "not provided"
+
+    def populate_expt_info(self):
+        """Get additional prep info from EBI
+
+        For each sample, retrieve the associated metadata, and
+        clean up the column names and null values.
+
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+
+        """
+        identifier = "secondary_sample_accession"
+
+        for index, row in self.metadata.iterrows():
+            sample_accession = row[identifier]
+            expt_accession = row["experiment_accession"]
+            expt_xml_dict = fetch_ebi_info(expt_accession)
+
+            if "EXPERIMENT_SET" not in expt_xml_dict.keys():
+                logger.warning(
+                    "No experimental metadata found for sample: "
+                    + sample_accession
+                    + " with experiment_accession "
+                    + expt_accession
+                    + ", omitting."
+                )
+            else:
+                expt_xml_dict = expt_xml_dict["EXPERIMENT_SET"]["EXPERIMENT"]
+                self.metadata.at[
+                    index, "experiment_title_specific"
+                ] = expt_xml_dict["TITLE"]
+
+                try:
+                    ea = expt_xml_dict["EXPERIMENT_ATTRIBUTES"][
+                        "EXPERIMENT_ATTRIBUTE"
+                    ]
+                    for e in ea:
+                        col = e["TAG"]
+                        col = clean_column_name(col)
+                        self.prep_columns = self.prep_columns + [col]
+                        try:
+                            self.metadata.at[index, col] = e["VALUE"]
+                        except Exception:
+                            logger.warning(
+                                "No value found for experiment "
+                                + " attribute: "
+                                + col
+                                + '. Setting to "not provided".'
+                            )
+                            self.metadata.at[index, col] = "not provided"
+                except Exception:
+                    logger.warning(
+                        "No experiment attributes found for "
+                        + expt_accession
+                        + " corresponding to sample "
+                        + sample_accession
+                    )
+
+    def subset_metadata(self, max_samples, rand_sample=False):
+        """Subsamples a dataframe for the specified number of samples
+
+        Simple helper function to return a subset of the metadata
+        a random subset based on the number requested
+
+        Parameters
+        ----------
+        max_samples: int
+            The number of samples to take
+        rand_sample: boolean
+            Whether to perform a random subsample
+
+        Returns
+        -------
+        sample_df
+            subsampled dataframe
+
+        """
+        md = self.metadata
+        if isinstance(max_samples, int):
+            if isinstance(rand_sample, bool):
+                if rand_sample:
+                    self.metadata = md.sample(max_samples)
+                else:
+                    self.metadata = md.head(max_samples)
+            else:
+                raise ValueError(
+                    "Expected boolean, received: " + str(rand_sample)
+                )
+        else:
+            raise ValueError("Expected int, received: " + str(rand_sample))
+
+    def filter_samples(self, filter_dict={}):
+        """Allows users to reduce the metadata to match criteria
+
+        For each key in the filter_dict, the matching Study metadata column
+        will be filtered to only retain samples with values that match.
+
+        Parameters
+        ----------
+        filter_dict : dict
+            dict of metadata columns as keys and acceptable terms as values
+
+        Returns
+        -------
+        None
+
+
+        """
+        md = self.metadata
+        if isinstance(filter_dict, dict):
+            for crit in filter_dict.keys():
+                # make sure the column is there
+                if crit not in self.metadata.columns:
+                    logger.warning(crit + " not in metadata. Skipping.")
+                else:
+                    if isinstance(filter_dict[crit], list):
+                        md = md[md[crit].str.lower().isin(filter_dict[crit])]
+                    else:
+                        raise ValueError(
+                            "Expected list, received: "
+                            + str(filter_dict[crit])
+                        )
+        else:
+            raise ValueError("Expected dict, received: " + str(filter_dict))
+        self.metadata = md
+
+    def summarize(self, groupby_cols):
+        """Groupby summary of the Study
+
+        Creates a groupby summary of the Study using the
+        columns provided
+
+
+        Parameters
+        ----------
+        groupby_cols: list
+            list of columns to summarize
+
+        Returns
+        -------
+        summary_df: pd.DataFrame
+            a pd.DataFrame with study_id and sample counts
+
+        """
+        summary_gb = self.metadata.groupby(groupby_cols)[
+            "sample_accession"
+        ].count()
+        summary_df = pd.DataFrame({"samples": summary_gb}).reset_index()
+        summary_df["study_id"] = self.study_id
+        output_columns = ["study_id", "samples"] + groupby_cols
+
+        return summary_df[output_columns]
+
+    def populate_sample_names(
+        self, identifier="sample_accession", run_accession="run_accession"
+    ):
+        """Resolves common sample name user error for EBI metadata
+
+        We need to catch common issue where identifier is identical
+        for unique samples. for now assume that in this case,
+        library_name will be unique, and if it isn't combine
+        sample and run names and then update the Study metadata.
+
+        Parameters
+        ----------
+        identifier : string
+            column name that defines the sample name used by EBI/ENA
+        run_accession: string
+            column name that defines the run accession used by EBI/ENA
+
+        Returns
+        -------
+        None
+
+
+        """
+        md = self.metadata
+
+        lib_strats = md["library_strategy"].unique()
+        num_strats = len(lib_strats)
+        lib_dfs_to_combine = []
+
+        for lib in lib_strats:
+            lib_subset = md[md["library_strategy"] == lib]
+            num_sample = len(lib_subset)
+            unique_samples = lib_subset[identifier].nunique()
+            if num_sample == unique_samples:
+                lib_subset["sample_name"] = lib_subset[identifier]
+            elif "library_name" in md.keys():
+                # users like to put their helpful info here
+                unique_lib = lib_subset["library_name"].nunique()
+                if num_sample == unique_lib:
+                    lib_subset["sample_name"] = lib_subset[
+                        "library_name"
+                    ].apply(lambda x: scrub_special_chars(str(x), sub="."))
+                else:
+                    # fall back to sample + run id
+                    lib_subset["sample_name"] = (
+                        lib_subset[identifier]
+                        + "."
+                        + lib_subset[run_accession]
+                    )
+            else:
+                # fall back to sample + run id
+                lib_subset["sample_name"] = (
+                    lib_subset[identifier] + "." + lib_subset[run_accession]
+                )
+
+            lib_dfs_to_combine.append(lib_subset)
+
+        # now recombine subsets into one
+        if len(lib_dfs_to_combine) >= 1:
+            md = pd.concat(lib_dfs_to_combine)
+        else:
+            logger.warning(
+                "No DataFrames to combine. The list of library "
+                + "strategies detected were: "
+                + str(lib_strats)
+                + " for project: "
+                + str(self.study_id)
+            )
+
+        # prepend sample name for easier alignment
+        md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
+        md = md.set_index("sample_name")
+
+        self.metadata = md
+
+    def populate_preps(self):
+        """Populates the metadata with the information needed for Qiita
+
+        Stages the study with qiita_prep_file entries in the metadata to
+        enable the metadata to be split into prep info files based on this
+        column for automatic loading in Qiita. Also gets the Qiita-recognized
+        term for the library strategy employed, corrects column labels, and
+        updates the list of prep info columns to ensure that sample and prep
+        metadata are separated.
+
+        Parameters
+        ----------
+        identifier : string
+            column name that defines the sample name used by EBI/ENA
+        run_accession: string
+            column name that defines the run accession used by EBI/ENA
+
+        Returns
+        -------
+        None
+        """
+
+        md = qiita_format(self.metadata)
+        sample_count_dict = {}
+
+        for index, row in md.iterrows():
+            sample_name = index
+            prep_type = format_prep_type(row, index)
+
+            if prep_type not in sample_count_dict.keys():
+                sample_count_dict[prep_type] = {sample_name: 0}
+            elif sample_name not in sample_count_dict[prep_type].keys():
+                sample_count_dict[prep_type][sample_name] = 0
+            else:
+                sample_count_dict[prep_type][sample_name] += 1
+
+            # this sets the key used for splitting the files into
+            # prep_info templates
+            md.at[index, "qiita_prep_file"] = (
+                prep_type
+                + "_"
+                + str(sample_count_dict[prep_type][sample_name])
+            )
+
+        qiita_prep_info_columns = [
+            "run_prefix",
+            "fastq_ftp",
+            "fastq_md5",
+            "study_accession",
+            "experiment_accession",
+            "platform",
+            "instrument_model",
+            "library_strategy",
+            "library_source",
+            "library_layout",
+            "library_selection",
+            "fastq_ftp",
+            "ena_checklist",
+            "ena_spot_count",
+            "ena_base_count",
+            "ena_first_public",
+            "ena_last_update",
+            "instrument_platform",
+            "submitted_format",
+            "sequencing_method",
+            "target_gene",
+            "target_subfragment",
+            "primer",
+            "run_accession",
+            "qiita_ebi_import",
+            "qiita_prep_file",
+        ]
+
+        read_columns = [
+            "qiita_raw_reads",
+            "qiita_quality_filtered_reads",
+            "qiita_non_host_reads",
+            "qiita_frac_reads_passing_filter",
+            "qiita_frac_non_host_reads",
+        ]
+        for rc in read_columns:
+            if rc not in self.metadata.columns:
+                md[rc] = "not determined"
+
+        md["platform"] = md["instrument_platform"]
+
+        self.metadata = md
+        self.prep_columns = (
+            self.prep_columns + qiita_prep_info_columns + read_columns
+        )

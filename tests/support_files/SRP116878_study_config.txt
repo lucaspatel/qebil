@@ -1,0 +1,11 @@
+[required]
+timeseries_type_id = 1
+metadata_complete = True
+mixs_compliant = True
+principal_investigator = Qiita-EBI Import, qiita.help@gmail.com, See study details
+reprocess = False
+study_alias = PRJNA401439
+study_description = SRP116878; 
+study_abstract = While the diversity and identity of microorganisms in water and sand at the beach have been well documented, few studies have investigated microorganisms in sea spray aerosols (SSA) at the beach. We characterized the microbial communities in SSA, water, and sand of three beaches in central California (Cowell Beach, Baker Beach, and Lovers Point) by sequencing the V4 region of the 16S rRNA gene.
+efo_ids = 1
+[optional]

@@ -1,0 +1,256 @@
+import pandas as pd
+import requests
+from xmltodict import parse
+from os import remove
+
+from qebil.log import logger
+
+from qebil.tools.fastq import (
+    unpack_fastq_ftp,
+    get_read_count,
+    check_valid_fastq,
+    remove_index_read_file,
+)
+from qebil.tools.util import retrieve_ftp_file
+
+
+def fetch_ebi_info(accession):
+    """Retrieve metadata from EBI
+
+    Parameters
+    ----------
+    accession:string
+        accession name from EBI/ENA
+
+    Returns
+    -------
+    xml_dict: dict
+       dictionary of accession information as provided by EBI
+
+    """
+    xml_dict = {}
+    url = "http://www.ebi.ac.uk/ena/data/view/" + accession + "&display=xml"
+    logger.info(url)
+    try:
+        response = requests.get(url)
+        xml_dict = parse(response.content)
+    except Exception:
+        logger.error(
+            "Could not obtain EBI information for "
+            + accession
+            + " at URL: "
+            + url
+            + " . Please check connection and"
+            + " accession id and try again."
+        )
+
+    return xml_dict
+
+
+def fetch_ebi_metadata(study_accession, fields=[]):
+    """Retrieves basic metadata information for a provided study
+
+    Parameters
+    ----------
+    study_accession : pd.DataFrame
+        string of study for retireval
+    fields : list
+        list of metadata columns to retrieve for samples
+        If empty, will use default list
+
+    Returns
+    -------
+    study_df: pd.DataFrame
+       dataframe of study information as provided by the chosen repository
+    """
+
+    if len(fields) == 0:
+        fields = [
+            "sample_accession",
+            "library_name",
+            "secondary_sample_accession",
+            "run_accession",
+            "experiment_accession",
+            "fastq_ftp",
+            "library_source",
+            "instrument_platform",
+            "submitted_format",
+            "library_strategy",
+            "library_layout",
+            "tax_id",
+            "scientific_name",
+            "instrument_model",
+            "library_selection",
+            "center_name",
+            "experiment_title",
+            "study_title",
+            "study_alias",
+            "experiment_alias",
+            "sample_alias",
+            "sample_title",
+            "fastq_md5",
+        ]
+
+    study_df = pd.DataFrame()
+
+    host = "http://www.ebi.ac.uk/ena/data/warehouse/filereport?accession="
+    read_type = "&result=read_run&"
+    fields = ",".join(fields)
+
+    url = "".join([host, study_accession, read_type, "fields=", fields])
+
+    try:
+        study_df = pd.read_csv(url, sep="\t", dtype=str)
+        study_df.dropna(axis=1, how="all", inplace=True)
+    except Exception:
+        logger.warning(
+            "Issue retrieving study information for "
+            + study_accession
+            + " with url "
+            + url
+        )
+    return study_df
+
+
+def fetch_fastq_files(
+    run_prefix, ftp_dict, output_dir, remove_index_file=False
+):
+    """Retrieves fastq files from EBI, checks their validity by
+    comparing the remote and local checksums and then returns
+    the number of reads in the downloaded file(s).
+
+    Parameters
+    -----------
+    run_prefix: string
+        prefix prepended to local files
+    ftp_dict: dict
+        dictionary of remote ftp files and checksums
+    output_dir: string
+        directory where to write the output file(s)
+
+    Returns
+    ---------
+    raw_reads : int
+        the number of reads in the downloaded file(s)
+    """
+
+    failed_list = []
+    local_read_dict = {}
+
+    for read in ftp_dict.keys():
+        read_num = read[-1]
+        local_fq_path = (
+            output_dir
+            + "/"
+            + run_prefix
+            + ".R"
+            + str(read_num)
+            + ".ebi.fastq.gz"
+        )
+        remote_fp = ftp_dict[read]["ftp"]
+        remote_md5 = ftp_dict[read]["md5"]
+        if run_prefix in failed_list:
+            logger.warning(
+                "Skipping download of " + remote_fp + " Paired file failed."
+            )
+        else:
+            success = retrieve_ftp_file(remote_fp, local_fq_path, remote_md5)
+            if not success:
+                logger.warning(
+                    "Download of "
+                    + remote_fp
+                    + " to "
+                    + local_fq_path
+                    + " failed."
+                )
+                failed_list.append(run_prefix)
+            else:
+                local_read_dict["read" + str(read_num)] = local_fq_path
+
+    if len(failed_list) > 0:
+        logger.warning(
+            "The following files failed to download:"
+            + str(failed_list)
+            + " removing partial"
+            + " fastq files."
+        )
+        for r in local_read_dict:
+            remove(r)
+    else:
+        if remove_index_file:
+            logger.info("Removing index file")
+            remove_index_read_file(run_prefix)
+
+        if len(local_read_dict) == 1:
+            valid = check_valid_fastq(local_read_dict["read1"])
+            if valid:
+                raw_reads = get_read_count(local_read_dict["read1"])
+            else:
+                logger.warning(
+                    "Check file validity failed for "
+                    + str(local_read_dict["read1"])
+                    + "Removing."
+                )
+                remove(local_read_dict["read1"])
+                raw_reads = "error"
+        elif len(local_read_dict) == 2:
+            valid = check_valid_fastq(local_read_dict["read1"])
+            if valid:
+                valid = check_valid_fastq(local_read_dict["read2"])
+            if valid:
+                raw_reads = get_read_count(
+                    local_read_dict["read1"], local_read_dict["read2"]
+                )
+            else:
+                logger.warning(
+                    "Check file validity failed for "
+                    + str(local_read_dict["read1"].replace("R1", "R*"))
+                    + "Removing."
+                )
+                remove(local_read_dict["read1"])
+                remove(local_read_dict["read2"])
+                raw_reads = "error"
+
+        else:
+            logger.warning(
+                "Read count not possible for"
+                + str(len(local_read_dict))
+                + " reads."
+            )
+            raw_reads = "error"
+
+    return raw_reads
+
+
+def fetch_fastqs(study, output_dir, remove_index_file=False):
+    """Helper method to consolidate calls to other methods for processing fastqs
+
+    This method is potentially convoluted to try to handle the fact that runs
+    need to be able to recover and some will want to minimize the storage
+    footprint for heavily host contaminated files.
+
+    This may be done more simply and elegantly so consider refactor.
+    Parameters
+    ----------
+    md: pd.DataFrame
+        updated metadata with read information
+
+    """
+    md = study.metadata
+
+    for index in md.index:
+        try:
+            run_prefix = md.at[index, "run_prefix"]
+            ebi_dict = unpack_fastq_ftp(
+                md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
+            )
+            md.at[index, "qiita_raw_reads"] = fetch_fastq_files(
+                run_prefix, ebi_dict, output_dir, remove_index_file
+            )
+        except Exception:
+            logger.warning(
+                "One or more required values missing from metadata:\n"
+                + " 'run_prefix', 'fastq_ftp', 'fastq_md5'"
+            )
+
+    return md
