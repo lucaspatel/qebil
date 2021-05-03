@@ -90,36 +90,7 @@ Commands:
 ```
   
   
-```
-Usage: qebil
-    project --ebi-id [EBI/ENA project or study ID]
-    Generate the study info, study detail, prep, and  sample
-    files for the entered EBI accession.
-    OR search `[search term(s)]`
-    Search EBI and get list of study IDs that match the terms,
-    may add '--process-search' to process these studies
-    OR --metadata-file `[metadata_file]`
-    Provide metadata file to normalize/validate
-    AND/OR
-    --fastq-dir
-    Provide a directory of fastq files to process for quality
-    filtering and host depletion
-Optional flags:
-    --output_dir `[directory where files will be saved]`
-    --repository `[specifies which repository to use]`
-    --prefix `[prefix for sample and prep info files]`
-    --strategy `[library strategies to select]`
-    --source `[library source to select]`
-    --platform `[sequencing platform to select]`
-    --scientific-name `[scientific names to select]`
-    --validator `[yaml file to use in validating]`
-    --download-fastq `[whether to download fastq files]`
-    --prep-max `[`Max number of samples per prep info file:
-    [https://qiita.ucsd.edu/static/doc/html/faq.html?highlight=
-    size#how-should-i-split-my-samples-within-preparations]`]`
-    --verbose output all information to log files
-    --quiet suppress all logging information
-```    
+
 ## Example Default EBI search
 
 ```
@@ -144,7 +115,7 @@ Usage: qebil search ebi [OPTIONS]
   ----------
   query: string
       string to query for matching EBI/ENA studies
-  output_dir: string
+  output-dir: string
       directory for writing out search results and logs
   prefix: string
       string to prepend to results and logs
@@ -160,7 +131,7 @@ Usage: qebil search ebi [OPTIONS]
       tuple of scientific name(s) to filter for
   summarize: (string1,string2,...stringN)
       tuple of metadata fields to groupby when summarizing
-  no_filter: bool
+  no-filter: bool
       whether to omit the default Qiita-compatible filter
 
   Returns
@@ -226,7 +197,7 @@ qebil search ebi --query "COVID19" --output-dir example/ --prefix COVID19_human_
    
 Note: for any term not passed to filter the results, the default terms are used. These include:
 --source:
-	-genomic
+    -genomic
     -genomic single cell
     -transcriptomic
     -transcriptomic single cell
@@ -245,7 +216,7 @@ Note: for any term not passed to filter the results, the default terms are used.
 --platform
 	-illumina
 --selection
-	-random
+    -random
     -pcr
     -random pcr
     -rt-pcr
