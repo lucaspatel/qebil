@@ -45,7 +45,7 @@ def normalize_metadata(
     validator,
     prep_max,
     quiet,
-    qebil_standard,
+    qiita_standard,
 ):
     """Applies the specified Qiimp-formatted .xlsx or .yml file
     to the provided metadata file(s) to normalize before uploading
