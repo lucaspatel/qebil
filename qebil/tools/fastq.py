@@ -38,8 +38,8 @@ def check_valid_fastq(fastq_file, keep=True):
                 logger.warning(fastq_file + " is invalid. Removing")
                 try:
                     remove(fastq_file)
-                except:
-                    print("Failed to remove: " + fastq_file)
+                except FileNotFoundError:
+                    logger.warning("Failed to remove: " + fastq_file)
             else:
                 logger.warning(
                     fastq_file + " is invalid. Set keep = False to remove."
@@ -83,8 +83,8 @@ def check_fastq_tail(fastq_file, keep=True):
                 logger.warning(fastq_file + " is invalid. Removing")
                 try:
                     remove(fastq_file)
-                except:
-                    print("Failed to remove: " + fastq_file)
+                except FileNotFoundError:
+                    logger.warning("Failed to remove: " + fastq_file)
             else:
                 logger.warning(
                     fastq_file + " is invalid. Set keep = False to remove."
@@ -119,11 +119,11 @@ def get_read_count(forward_read, reverse_read=""):
         "count",
         forward_read,
     ]
-
+    print(fqtools_args)
     fqtools_ps = Popen(fqtools_args, stdout=PIPE)
     res = fqtools_ps.communicate()[0]
     res = res.decode().replace("\n", "")
-
+    print(res)
     if fqtools_ps.returncode == 0:
         read_1_count = res
     else:
@@ -225,7 +225,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, sep=";"):
     md5_list = fastq_md5.split(sep)
 
     if len(ftp_list) == 0:
-        error_msg = "No ftp files present. Check study details as access may be restricted"
+        error_msg = ("No ftp files present. Check study details"
+                     + " as access may be restricted")
         logger.warning(error_msg)
     else:
         read_counter = 0

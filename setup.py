@@ -6,7 +6,6 @@
 # ----------------------------------------------------------------------------
 import re
 import ast
-from glob import glob
 from setuptools import find_packages, setup
 
 classes = """
@@ -47,22 +46,25 @@ setup(
     author_email="cmiinfo@ucsd.edu",
     maintainer="Center for Microbiome Innovation",
     maintainer_email="cmiinfo@ucsd.edu",
+    python_requires=">=3.6",
     packages=find_packages(),
     install_requires=[
         "pandas >= 0.23.4",
         "numpy >= 1.15.4",
-        'requests',
-        'PyPDF2',
-        'click',
-        'black',
-        'xmltodict',
-        'bs4',
-        'pyyaml >=5.1',
-        'xlrd == 1.2.0'
+        "requests",
+        "PyPDF2",
+        "click",
+        "black",  # only needed for development
+        "flake8",  # only needed for development
+        "xmltodict",
+        "bs4",
+        "pyyaml >= 5.1",
+        "xlrd == 1.2.0",
     ],
+    # extra_require={"dev"} # look into adding this for test and dev
     classifiers=classifiers,
     entry_points={"console_scripts": standalone},
     include_package_data=True,
-    package_data={'qebil': ['support_files/validators/*','support_files/*']},
+    package_data={"qebil": ["support_files/validators/*", "support_files/*"]},
     zip_safe=False,
 )

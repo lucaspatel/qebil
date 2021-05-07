@@ -1,12 +1,13 @@
 import pandas as pd
 from qebil.tools.metadata import (
     format_prep_type,
-    qiita_format,
+    qebil_format,
     clean_column_name,
     scrub_special_chars,
 )
 from qebil.log import logger
 from qebil.fetch import fetch_ebi_info, fetch_ebi_metadata
+from qebil.tools.util import get_ebi_ids
 
 
 class Study:
@@ -34,21 +35,22 @@ class Study:
         """
         self.metadata = md
         self.prep_columns = []
-        # A bit conflicted about whether this should be here, seems like a kludge?
+        self.study_id = "not provided"
+        # A bit conflicted about whether this should be here,
+        # seems like a kludge?
         if (
             "study_accession" in self.metadata.columns
         ):  # assume this is from EBI
             unique_study = self.metadata["study_accession"].unique()
             if len(unique_study) == 1:
                 self.study_id = unique_study[0]
-                self.populate_details()
-
+            elif len(unique_study) ==0:
+                logger.warning("No study accession in metadata")
             else:
-                self.study_id = "not provided"
-                self.details = {}
-        else:
-            self.study_id = "not provided"
-            self.details = {}
+                raise ValueError("Metadata file should contain only one "
+                                 + " unique study_accession value."
+                                 + " Found: " + str(unique_study)
+                                )        
 
     @property
     def metadata(self):
@@ -94,6 +96,19 @@ class Study:
             raise ValueError("Did not receive string, instead: " + str(value))
         else:
             self._study_id = value
+            
+    @property
+    def proj_id(self):
+        """Gets the Project ID"""
+        return str(self._proj_id)
+
+    @proj_id.setter
+    def proj_id(self, value):
+        """Sets the Project ID if a string"""
+        if not isinstance(value, str):
+            raise ValueError("Did not receive string, instead: " + str(value))
+        else:
+            self._proj_id = value
 
     @property
     def prep_columns(self):
@@ -121,7 +136,8 @@ class Study:
                 )
             else:
                 return cls(
-                    pd.DataFrame.from_dict(study_dict, orient ='index', columns = list(study_dict.keys()))
+                    pd.DataFrame.from_dict(study_dict, orient ='index',
+                    columns = list(study_dict.keys()))
                 )
         else:
             raise ValueError(
@@ -160,20 +176,25 @@ class Study:
 
         """
         if not isinstance(study_id, str):
-            raise ValueError("Did not receive string, instead: " + study_id)
+            raise ValueError("Did not receive string, instead: " + str(study_id))
         else:
 
             md = fetch_ebi_metadata(study_id, fields)
-            md["study_accession"] = study_id
             tmp_study = cls(md)
-            tmp_study.study_id = study_id
-            # subset the study if the user requests before the time-consuming
-            # per sample/run metadata retrieval
-            if isinstance(max_samples, int):
-                tmp_study.subset_metadata(max_samples, random_subsample)
+            if len(tmp_study.metadata) > 0:
+                # subset the study if the user requests before the time-consuming
+                # per sample/run metadata retrieval
+                if isinstance(max_samples, int):
+                    tmp_study.subset_metadata(max_samples, random_subsample)
 
-            tmp_study.populate_details(full_details)
+                tmp_study.populate_sample_names()
+                tmp_study.populate_details(full_details)
 
+                tmp_study.study_id = study_id
+                logger.info("Set study_id to : " +  tmp_study.study_id)
+            else:
+                logger.warning("No study metadata retrieved for " + study_id)
+            
             return tmp_study
 
     def populate_details(self, full_details=False):
@@ -182,7 +203,7 @@ class Study:
         Core method to retrieve basic details of an EBI/ENA study,
         and then detailed information for each sample and run
         if full_details is set to True and update these for the
-        provided Study object
+        provided Study object.
 
         Parameters
         ----------
@@ -195,63 +216,97 @@ class Study:
 
 
         """
-        study_accession = self.study_id
-        study_xml_dict = fetch_ebi_info(study_accession)
+        ebi_accession = self.study_id
+        ebi_xml_dict = {}
+
+        if ebi_accession != "not provided":
+            ebi_xml_dict = fetch_ebi_info(ebi_accession)
+            study_accession, project_accession = get_ebi_ids(ebi_xml_dict)
+        else:
+            study_accession = False
+            
         retrieved_details = False
 
-        if "STUDY_SET" in study_xml_dict.keys():
-            logger.info(study_accession + " is study ID.")
-            retrieved_details = True
-        elif "PROJECT_SET" in study_xml_dict.keys():
-            try:
-                proj_dict = study_xml_dict["PROJECT_SET"]["PROJECT"]
-                secondary_accession = proj_dict["IDENTIFIERS"]["SECONDARY_ID"]
-                study_xml_dict = fetch_ebi_info(secondary_accession)
-                if len(study_xml_dict) > 0:
-                    logger.warning(
-                        study_accession
-                        + " is project ID."
-                        + " Retrieved secondary ID: "
-                        + secondary_accession
+        if not study_accession:
+            logger.error("No matching study ID found for project "
+                         + ebi_accession)
+            self.study_id = "not provided"
+        else: # consider simplifying loop to display info by default
+            if study_accession == ebi_accession:
+                logger.info(study_accession + " is study ID,"
+                            + " retrieved details.")
+                retrieved_details = True
+                self.proj_id = project_accession
+            elif project_accession == ebi_accession:
+                try:
+                    # consider refactor to sort specific Errors
+                    # could define custom error type for Qebil
+                    ebi_xml_dict = fetch_ebi_info(study_accession)
+                    if len(ebi_xml_dict) > 0:
+                        logger.warning(
+                            ebi_accession
+                            + " is project ID."
+                            + " Retrieved secondary ID: "
+                            + study_accession
+                        )
+                        retrieved_details = True
+                        self.study_id = study_accession
+                        self.proj_id = project_accession
+                except Exception:
+                    logger.error(
+                        "No matching study ID found for project "
+                        + ebi_accession
                     )
-                    retrieved_details = True
-            except Exception:
-                logger.error(
-                    "No matching study ID found for project "
-                    + study_accession
-                )
-        else:
-            logger.warning("No study information for " + study_accession)
-
+            else:
+                logger.error("No matching study ID found for "
+                             + ebi_accession)
+                self.study_id = "not provided"
+                self.proj_id = project_accession
+        print("Retrieved details: " + str(retrieved_details))
+        print("Full details: " + str(full_details))
+        
         if retrieved_details:
-            self.details = study_xml_dict
-
+            logger.info("Study info retrieved for"
+                        + ebi_accession
+                        + " Study ID: "
+                        + self.study_id
+                        + " Project ID: "
+                        + self.proj_id)
             if full_details:
                 self.populate_sample_info()
                 self.populate_expt_info()
-                self.populate_sample_names()
+        elif full_details:
+            logger.warning("Skipping sample and run info retrieval."
+                           + " No study details retrieved for "
+                           + ebi_accession
+                           )
+        else:
+            logger.warning("No study info retrieved for"
+                            + ebi_accession)
+
+        logger.info(ebi_xml_dict) 
+        self.details = ebi_xml_dict
 
     def populate_sample_info(self):
-        """Retrieve information for each sample including experiment/prep information
+        """Retrieve information for each sample including experiment/prep
+        information
 
         This method retrieves a list of samples with the requested study
         accession from EBI or NCBI including all provided sample and prep
         metadata in the EBI ENA repository.
 
-        Parameters
-        ----------
-        study_df : pd.DataFrame
-            dataframe of samples for retrieval
-
-        Returns
-        -------
-        study_df: pd.DataFrame
-           dataframe of study information as provided by the chosen repository
         """
 
         identifier = "secondary_sample_accession"
 
         for index, row in self.metadata.iterrows():
+            # TODO: could be refactored for speed, though need to retrieve info 
+            #  per sample may be a bottleneck here. Marcus provided this ref url:
+            # https://engineering.upside.com/a-beginners-guide-to-optimizing-
+            # pandas-code-for-speed-c09ef2c6a4d6?gi=fc949808a74c
+            # one option may be to extract the identifiers, create a dict of
+            # the retrieved metadata, convert to a DataFrame and merge with
+            # the Study.metadata
             sample_accession = row[identifier]
             sample_xml_dict = fetch_ebi_info(sample_accession)
 
@@ -294,7 +349,6 @@ class Study:
 
         For each sample, retrieve the associated metadata, and
         clean up the column names and null values.
-
 
         Parameters
         ----------
@@ -474,7 +528,6 @@ class Study:
         md = self.metadata
 
         lib_strats = md["library_strategy"].unique()
-        num_strats = len(lib_strats)
         lib_dfs_to_combine = []
 
         for lib in lib_strats:
@@ -526,7 +579,7 @@ class Study:
     def populate_preps(self):
         """Populates the metadata with the information needed for Qiita
 
-        Stages the study with qiita_prep_file entries in the metadata to
+        Stages the study with qebil_prep_file entries in the metadata to
         enable the metadata to be split into prep info files based on this
         column for automatic loading in Qiita. Also gets the Qiita-recognized
         term for the library strategy employed, corrects column labels, and
@@ -545,7 +598,7 @@ class Study:
         None
         """
 
-        md = qiita_format(self.metadata)
+        md = qebil_format(self.metadata)
         sample_count_dict = {}
 
         for index, row in md.iterrows():
@@ -561,13 +614,13 @@ class Study:
 
             # this sets the key used for splitting the files into
             # prep_info templates
-            md.at[index, "qiita_prep_file"] = (
+            md.at[index, "qebil_prep_file"] = (
                 prep_type
                 + "_"
                 + str(sample_count_dict[prep_type][sample_name])
             )
 
-        qiita_prep_info_columns = [
+        qebil_prep_info_columns = [
             "run_prefix",
             "fastq_ftp",
             "fastq_md5",
@@ -592,16 +645,16 @@ class Study:
             "target_subfragment",
             "primer",
             "run_accession",
-            "qiita_ebi_import",
-            "qiita_prep_file",
+            "qebil_ebi_import",
+            "qebil_prep_file",
         ]
 
         read_columns = [
-            "qiita_raw_reads",
-            "qiita_quality_filtered_reads",
-            "qiita_non_host_reads",
-            "qiita_frac_reads_passing_filter",
-            "qiita_frac_non_host_reads",
+            "qebil_raw_reads",
+            "qebil_quality_filtered_reads",
+            "qebil_non_host_reads",
+            "qebil_frac_reads_passing_filter",
+            "qebil_frac_non_host_reads",
         ]
         for rc in read_columns:
             if rc not in self.metadata.columns:
@@ -611,5 +664,5 @@ class Study:
 
         self.metadata = md
         self.prep_columns = (
-            self.prep_columns + qiita_prep_info_columns + read_columns
+            self.prep_columns + qebil_prep_info_columns + read_columns
         )

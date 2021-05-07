@@ -1,11 +1,9 @@
-import pandas as pd
-import subprocess
-from os import path
-from pathlib import Path
-import yaml
-import numpy as np
 import collections
-import glob
+import pandas as pd
+from pathlib import Path
+import numpy as np
+import subprocess
+import yaml
 
 from qebil.log import logger
 
@@ -63,7 +61,7 @@ def qiimp_parser(filename):
     if len(parsed_yml) == 0:
         valid_format = False
         logger.warning(
-            +" Skipping validator load for "
+            " Skipping validator load for "
             + str(filename)
             + " The file contains no yaml data."
             + " Please check contents and try again."
@@ -71,7 +69,10 @@ def qiimp_parser(filename):
     else:
         for k in parsed_yml.keys():
             try:
-                key_length = len(parsed_yml[k].keys())
+                key_list = parsed_yml[k].keys()
+                logger.info("Keys loaded for " + str(k) + ": "
+                            + str(key_list) + " in file"
+                            + filename)
             except Exception:
                 valid_format = False
                 logger.warning(
@@ -93,15 +94,15 @@ def apply_validation(prevalid_df, validator_yaml):
     for k in validator_yaml.keys():
         mapped = False
         if k not in prevalid_df.columns:
-            if k.split("_")[0] != "qiita":
-                qiita_k = "qiita_" + k
+            if k.split("_")[0] != "qebil":
+                qebil_k = "qebil_" + k
             else:
-                qiita_k = k
+                qebil_k = k
             msg = (
                 msg
                 + k
                 + " not found in metadata. Attempting to generate "
-                + qiita_k
+                + qebil_k
                 + " from available sources.\n"
             )
 
@@ -109,13 +110,13 @@ def apply_validation(prevalid_df, validator_yaml):
                 source_list = validator_yaml[k]["sources"]
                 for src in source_list.keys():
                     if src in prevalid_df.columns and not mapped:
-                        msg = msg + "Mapping from " + src + " to " + qiita_k
+                        msg = msg + "Mapping from " + src + " to " + qebil_k
                         map_dict = validator_yaml[k]["sources"][src]
                         if not isinstance(map_dict, collections.Mapping):
                             msg = msg + " by direct copy \n"
-                            prevalid_df[qiita_k] = prevalid_df[src]
-                            if len(prevalid_df[qiita_k].unique()) == 1:
-                                if prevalid_df[qiita_k][0] != "not provided":
+                            prevalid_df[qebil_k] = prevalid_df[src]
+                            if len(prevalid_df[qebil_k].unique()) == 1:
+                                if prevalid_df[qebil_k][0] != "not provided":
                                     mapped = True
                                 else:
                                     msg = (
@@ -129,7 +130,7 @@ def apply_validation(prevalid_df, validator_yaml):
                                 mapped = True
                         elif "mapping" in map_dict.keys():
                             mapping_dict = map_dict["mapping"]
-                            prevalid_df[qiita_k] = prevalid_df[src].apply(
+                            prevalid_df[qebil_k] = prevalid_df[src].apply(
                                 lambda x: mapping_dict[x]
                                 if x in mapping_dict.keys()
                                 else x
@@ -140,8 +141,8 @@ def apply_validation(prevalid_df, validator_yaml):
                                 + str(mapping_dict)
                                 + "\n"
                             )
-                            if len(prevalid_df[qiita_k].unique()) == 1:
-                                if prevalid_df[qiita_k][0] != "not provided":
+                            if len(prevalid_df[qebil_k].unique()) == 1:
+                                if prevalid_df[qebil_k][0] != "not provided":
                                     mapped = True
                                 else:
                                     msg = (
@@ -165,17 +166,17 @@ def apply_validation(prevalid_df, validator_yaml):
             else:  # if there isn't a source then revert to default
                 if not mapped:
                     try:
-                        prevalid_df[qiita_k] = validator_yaml[k]["default"]
+                        prevalid_df[qebil_k] = validator_yaml[k]["default"]
                         msg = (
                             msg
                             + "Setting "
-                            + qiita_k
+                            + qebil_k
                             + " to "
                             + validator_yaml[k]["default"]
                             + "\n"
                         )
                     except Exception:
-                        prevalid_df[qiita_k] = "not provided"
+                        prevalid_df[qebil_k] = "not provided"
                         msg = (
                             msg
                             + k
@@ -288,10 +289,10 @@ def apply_validation(prevalid_df, validator_yaml):
 
 def normalize_lat_lon(valid_df):
     if "lat_lon" in valid_df.columns:
-        valid_df["qiita_latitude"] = valid_df["lat_lon"].apply(
+        valid_df["qebil_latitude"] = valid_df["lat_lon"].apply(
             lambda x: split_lat_lon(x, "lat")
         )
-        valid_df["qiita_longitude"] = valid_df["lat_lon"].apply(
+        valid_df["qebil_longitude"] = valid_df["lat_lon"].apply(
             lambda x: split_lat_lon(x, "long")
         )
 
@@ -314,10 +315,10 @@ def add_emp_info(input_df):
         dataframe with EMP protocol standard information
     """
     output_df = input_df
-    output_df["prep_file"] = np.where(
+    output_df["qebil_prep_file"] = np.where(
         output_df["library_strategy"] == "AMPLICON",
-        output_df["prep_file"].str.replace("AMBIGUOUS", "16S"),
-        output_df["prep_file"],
+        output_df["qebil_prep_file"].str.replace("AMBIGUOUS", "16S"),
+        output_df["qebil_prep_file"],
     )
     output_df["target_gene"] = np.where(
         output_df["library_strategy"] == "AMPLICON",

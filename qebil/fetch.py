@@ -29,15 +29,17 @@ def fetch_ebi_info(accession):
 
     """
     xml_dict = {}
-    url = "http://www.ebi.ac.uk/ena/data/view/" + accession + "&display=xml"
+    # could use this list valid_stems=["PRJEB", "PRJNA", "ERP", "SRP", "SRR", "SRS"]
+    # to check format before requesting url
+    url = "http://www.ebi.ac.uk/ena/data/view/" + str(accession) + "&display=xml"
     logger.info(url)
     try:
         response = requests.get(url)
         xml_dict = parse(response.content)
-    except Exception:
+    except Exception: # TODO: add response exception, and separate out parse
         logger.error(
             "Could not obtain EBI information for "
-            + accession
+            + str(accession)
             + " at URL: "
             + url
             + " . Please check connection and"
@@ -89,6 +91,7 @@ def fetch_ebi_metadata(study_accession, fields=[]):
             "sample_alias",
             "sample_title",
             "fastq_md5",
+            "study_accession"
         ]
 
     study_df = pd.DataFrame()
@@ -98,6 +101,7 @@ def fetch_ebi_metadata(study_accession, fields=[]):
     fields = ",".join(fields)
 
     url = "".join([host, study_accession, read_type, "fields=", fields])
+    logger.info("Querying study metadata at: " + url)
 
     try:
         study_df = pd.read_csv(url, sep="\t", dtype=str)
@@ -244,7 +248,7 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
             ebi_dict = unpack_fastq_ftp(
                 md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
             )
-            md.at[index, "qiita_raw_reads"] = fetch_fastq_files(
+            md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
                 run_prefix, ebi_dict, output_dir, remove_index_file
             )
         except Exception:

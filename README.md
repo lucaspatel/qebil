@@ -90,36 +90,7 @@ Commands:
 ```
   
   
-```
-Usage: qebil
-    project --ebi-id [EBI/ENA project or study ID]
-    Generate the study info, study detail, prep, and  sample
-    files for the entered EBI accession.
-    OR search `[search term(s)]`
-    Search EBI and get list of study IDs that match the terms,
-    may add '--process-search' to process these studies
-    OR --metadata-file `[metadata_file]`
-    Provide metadata file to normalize/validate
-    AND/OR
-    --fastq-dir
-    Provide a directory of fastq files to process for quality
-    filtering and host depletion
-Optional flags:
-    --output_dir `[directory where files will be saved]`
-    --repository `[specifies which repository to use]`
-    --prefix `[prefix for sample and prep info files]`
-    --strategy `[library strategies to select]`
-    --source `[library source to select]`
-    --platform `[sequencing platform to select]`
-    --scientific-name `[scientific names to select]`
-    --validator `[yaml file to use in validating]`
-    --download-fastq `[whether to download fastq files]`
-    --prep-max `[`Max number of samples per prep info file:
-    [https://qiita.ucsd.edu/static/doc/html/faq.html?highlight=
-    size#how-should-i-split-my-samples-within-preparations]`]`
-    --verbose output all information to log files
-    --quiet suppress all logging information
-```    
+
 ## Example Default EBI search
 
 ```
@@ -130,42 +101,6 @@ Usage: qebil search ebi [OPTIONS]
   This method performs a search in EBI for the provided terms, applies the
   selection criteria as a filter, and then aggregates and summarizing the
   results found.
-
-  The steps are to:
-  1) set up the output directory
-  2) set the level of logging requested
-  3) prepare a dictionary of filter criteria supplied by the
-  user or using Qiita-compatible limits by default
-  4) concatenate the query strings into one term
-  5) perform the search and aggregate the results
-  6) write out the results
-
-  Parameters
-  ----------
-  query: string
-      string to query for matching EBI/ENA studies
-  output_dir: string
-      directory for writing out search results and logs
-  prefix: string
-      string to prepend to results and logs
-  quiet: bool
-      whether to write out log messages to a file
-  source: (string1,string2,...stringN)
-      tuple of library source(s) to filter for
-  strategy: (string1,string2,...stringN)
-      tuple of library strateg(y/ies) to filter for
-  platform: (string1,string2,...stringN)
-      tuple of sequencing platform(s) to filter for
-  scientific_name: (string1,string2,...stringN)
-      tuple of scientific name(s) to filter for
-  summarize: (string1,string2,...stringN)
-      tuple of metadata fields to groupby when summarizing
-  no_filter: bool
-      whether to omit the default Qiita-compatible filter
-
-  Returns
-  ----------
-  None
 
 Options:
   --query TEXT                    EBI search string to identify studies to
@@ -226,7 +161,7 @@ qebil search ebi --query "COVID19" --output-dir example/ --prefix COVID19_human_
    
 Note: for any term not passed to filter the results, the default terms are used. These include:
 --source:
-	-genomic
+    -genomic
     -genomic single cell
     -transcriptomic
     -transcriptomic single cell
@@ -243,9 +178,9 @@ Note: for any term not passed to filter the results, the default terms are used.
     -poolclone
     -clone
 --platform
-	-illumina
+    -illumina
 --selection
-	-random
+    -random
     -pcr
     -random pcr
     -rt-pcr
@@ -295,18 +230,13 @@ qebil search ebi --query "COVID19" --output-dir example/ --prefix COVID19_gut_lo
 --platform "OXFORD_NANOPORE"
 ```
 
-Once we have a list of studies we're interested in obtaining, we can use QEBIL to download them. Using the example above, we can just supply the output file with the --project-file parameter:
-```
-
-```
-
-
 # Downloading studies
 
 ```
 Usage: qebil fetch project [OPTIONS]
 
-  Retrieve metadata for samples from studies specified
+  Retrieves metadata and fastq files if requested, for samples from studies
+  specified
 
   This method retrieves metadata (and data) for a study in EBI/ENA as
   requested either by --ebi-id or listed in the --project-file location,
@@ -315,15 +245,8 @@ Usage: qebil fetch project [OPTIONS]
   whole study. Numerous options are provided to enable customization of the
   output, filtering for samples that match certain criteria, and
   augmentation with either additional metadata and/or with EMP protocol
-  information.      The steps are to: 1) set up the output directory 2)
-  set the level of logging requested 3) prepare a dictionary of filter
-  criteria supplied by the user or using Qiita-compatible limits by default
-  4) determine which studies and/or samples to download either from the list
-  of --ebi-id entries, the --project-file entries, the list of --metadata-
-  file entries, and/or the list of --publication entries. 5) Download the
-  study metadata, and details for automatic loading into Qiita 6) Download
-  the fastq files if requested
-
+  information.
+  
   The script is designed to be robust to restarts and performs multiple
   safety checks to ensure the files downloaded match those in the EBI/ENA
   repository.
@@ -344,75 +267,6 @@ Usage: qebil fetch project [OPTIONS]
       On-the-fly (per sample) quality filtering with fastp and human
       read removal and quantification is in place but needs unittesting
       before going live.
-
-  Parameters
-  ----------
-  ebi-id: string
-      string of EBI/ENA stud(y/ies) to retrieve
-  project-file: string
-      path to file with project IDs either one per line
-      or unique IDs in the 'study_id' column as produced
-      from a qebil search ebi result
-  metadata-file:
-      tsv or csv file containing the samples that should
-      be retrieved
-  publication: string
-      url, pdf, or txt file containing project or study IDs
-  output_dir: string
-      directory for writing out search results and logs
-  prefix: string
-      string to prepend to results and logs
-  quiet: bool
-      whether to write out log messages to a file
-  qiita/raw: bool
-      whether to output the metadata into separate
-      Qiita-compatible sample and preparation info files
-  prep_max: int
-      the maximum number of files to add to any given prep
-      info file
-  download_fastq: bool
-      whether to download the fastq files from the study
-  human_removal: bool
-      whether to perform on-the-fly human read removal
-  cpus: int
-      number of threads available for processing, only
-      used with human_removal
-  source: (string1,string2,...stringN)
-      tuple of library source(s) to filter for
-  strategy: (string1,string2,...stringN)
-      tuple of library strateg(y/ies) to filter for
-  platform: (string1,string2,...stringN)
-      tuple of sequencing platform(s) to filter for
-  scientific_name: (string1,string2,...stringN)
-      tuple of scientific name(s) to filter for
-  no_filter: bool
-      whether to omit the default Qiita-compatible filter
-  max_samples: int
-      max number of samples to populate with metadata and/or
-      download fastq files from
-  random_subsample: bool
-      whether to randomly subsample the metadata
-  add_metadata_file: string
-      path to additional metadata to merge with the info
-      retrieved from EBI/ENA
-  merge_column: string
-      column to use for merging the metadata. defaults to
-      sample_name, or pass 'auto' to detect automatically
-  emp_protocol: bool
-      whether to add EMP protocol metadata fields for 16S V4
-      sequencing to preparation info files
-  overwrite: bool
-      whether to overwrite existing files and metadata rather
-      than use existing downloads. Note, sequencing files are
-      automatically checked for md5checksum validity during
-      download
-  correct_index: bool
-      whether to automatically resolve studies with three reads
-      by renaming and removing the index file
-
-  Returns
-  ----------
-  None
 
 Options:
   --ebi-id TEXT                   EBI/ENA project or study accession(s) to

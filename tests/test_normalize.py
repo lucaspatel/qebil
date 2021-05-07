@@ -1,6 +1,8 @@
 from qebil.normalize import qiimp_parser, apply_validation, normalize_lat_lon, add_emp_info
 import unittest
 from pandas.testing import assert_frame_equal
+from os import path
+import pandas as pd
 
 _this_dir, _this_filename = path.split(__file__)
 _test_support_dir = path.join(_this_dir, "support_files")
@@ -56,7 +58,7 @@ class NormalizeTest(unittest.TestCase):
         expected_df = pd.DataFrame.from_dict({'sample_name':['sample1','sample2'],
                                           'prep_file':['AMBIGUOUS_0','Metagenomic_0']
                                          })
-        expected_ msg = ''
+        expected_msg = ''
         result_df, result_msg = apply_validation(test_df,test_yml)
         
         self.assertEqual(result_msg,expected_msg)
@@ -65,8 +67,8 @@ class NormalizeTest(unittest.TestCase):
         
         # Addtional potential tests:
         # need a column that will test if the key from the validator is not in the test_df
-        # look for the same thing but with 'qiita' at the start
-        # the final normalized column should be prepended with qiita_
+        # look for the same thing but with 'qebil_ at the start
+        # the final normalized column should be prepended with qebil_
         # going to omit testing the output message for now due to complexity
         # but do need to have at least one column with a source and have it map.
         # and one column with a map and a mapping dictionary
@@ -84,14 +86,14 @@ class NormalizeTest(unittest.TestCase):
                                          })
         expected_df = pd.DataFrame.from_dict({'sample_name':['sample1'],
                                               'lat_lon':['30.01 N 90.01 W'],
-                                              'qiita_latitude'['30.01'],
-                                              'qiita_longitude':['-90.01']})
-        test_df_no_lat_lon = = pd.DataFrame.from_dict({'sample_name':['sample1'],
-                                          'latitude'['30.01'],
+                                              'qebil_latitude':['30.01'],
+                                              'qebil_longitude':['-90.01']})
+        test_df_no_lat_lon = pd.DataFrame.from_dict({'sample_name':['sample1'],
+                                          'latitude':['30.01'],
                                            'longitude':['-90.01']
                                          })
-        assert_fram_equal(expected_df,normalize_lat_lon(test_df))                                      
-        assert_fram_equal(test_df_no_lat_lon,normalize_lat_lon(test_df_no_lat_lon))
+        assert_frame_equal(expected_df,normalize_lat_lon(test_df))                                      
+        assert_frame_equal(test_df_no_lat_lon,normalize_lat_lon(test_df_no_lat_lon))
 
 
     def test_add_emp_info(self):
@@ -101,11 +103,11 @@ class NormalizeTest(unittest.TestCase):
         """
         test_df = pd.DataFrame.from_dict({'library_strategy':['AMPLICON','WGS'],
                                           'sample_name':['sample1','sample2'],
-                                          'prep_file':['AMBIGUOUS_0','Metagenomic_0']
+                                          'qebil_prep_file':['AMBIGUOUS_0','Metagenomic_0']
                                          })
         expected_df = pd.DataFrame.from_dict({'library_strategy':['AMPLICON','WGS'],
                                           'sample_name':['sample1','sample2'],
-                                          'prep_file':['16S_0','Metagenomic_0'],
+                                          'qebil_prep_file':['16S_0','Metagenomic_0'],
                                           'target_gene' : ["16S rRNA",'not applicable'],
                                           "target_subfragment": ["V4",'not applicable'],
                                           "library_construction_protocol":
@@ -114,25 +116,25 @@ class NormalizeTest(unittest.TestCase):
                                            "primer": ["GTGTGCCAGCMGCCGCGGTAA",'not applicable'],
                                           "sequencing_meth" : ["Sequencing by synthesis",'not applicable']
                                          })
-        assert_frame_equal(expected_df,add_empo_info(test_df))
+        assert_frame_equal(expected_df,add_emp_info(test_df))
 
 
     def test_split_lat_lon(self):
         """ """
-        test_dict = { '30.01 N 90.01 W': {'lat': '30.01','long': '-90.01'}
-                          '30.01 S 90.01 W': {'lat': '-30.01','long': '-90.01'},
+        test_dict = { '30.01 N 90.01 W': {'lat': '30.01','long': '-90.01'},
+                         '30.01 S 90.01 W': {'lat': '-30.01','long': '-90.01'},
                          '30.01 N 90.01 E': {'lat': '30.01','long': '90.01'},
                          '30.01 S 90.01 E': {'lat': '-30.01','long': '90.01'}
                         }
         test_non_standard = '30.01 -90.01'
         results_dict = {}
         for k in test_dict.keys():
-            self.assertEqual(k,split_lat_lon(k))
-            self.assertEqual(test_dict[k]['lat'],split_lat_lon(k,'lat'))
-            self.assertEqual(test_dict[k]['long'],split_lat_lon(k,'long'))
+            self.assertEqual(k,normalize_lat_lon(k))
+            self.assertEqual(test_dict[k]['lat'],normalize_lat_lon(k,'lat'))
+            self.assertEqual(test_dict[k]['long'],normalize_lat_lon(k,'long'))
 
-        self.assertEqual(test_non_standard,split_lat_lon(test_non_standard,'lat'))
-        self.assertEqual(test_non_standard,split_lat_lon(test_non_standard,'long'))
+        self.assertEqual(test_non_standard,normalize_lat_lon(test_non_standard,'lat'))
+        self.assertEqual(test_non_standard,normalize_lat_lon(test_non_standard,'long'))
     
 if __name__ == '__main__':
     # begin the unittest.main()

@@ -1,7 +1,7 @@
 import glob
 
 from qebil.log import logger
-
+from qebil.tools.util import get_ebi_ids
 
 def write_config_files(proj_dict, output_dir, prefix):
     """Helper function for handling Study objects to write config files
@@ -39,7 +39,6 @@ def write_config_files(proj_dict, output_dir, prefix):
 
         if len(study_details) > 0:
             # writes out the files needed for Qiita study generation
-            print(file_prefix)
             write_config_file(study_details, file_prefix)
         else:
             logger.warning("No study details found for " + str(proj))
@@ -87,30 +86,21 @@ def write_config_file(xml_dict, prefix=""):
     )
 
     config_string = config_string + "\nreprocess = False"
+    study_id, proj_id  = get_ebi_ids(xml_dict)
+    
     parse_dict = xml_dict["STUDY_SET"]["STUDY"]
     null_val = "XXEBIXX"
 
     title = null_val
     alias = "\nstudy_alias = " + null_val
     abstract = "\nstudy_abstract = " + null_val
-    description = "\nstudy_description = " + null_val
-    study_id = null_val
-    proj_id = null_val
-
-    if "IDENTIFIERS" in parse_dict.keys():
-        if "PRIMARY_ID" in parse_dict["IDENTIFIERS"].keys():
-            study_id = parse_dict["IDENTIFIERS"]["PRIMARY_ID"]
-        if "SECONDARY_ID" in parse_dict["IDENTIFIERS"].keys():
-            proj_id = parse_dict["IDENTIFIERS"]["SECONDARY_ID"]
-        if study_id == null_val and proj_id != null_val:
-            study_id = proj_id
-        if proj_id == null_val and study_id != null_val:
-            proj_id = study_id
+    description = "\nstudy_description = " + null_val    
 
     # setting alias to project ID and ignoring EBI alias unless
     # no description found
-    alias = alias.replace(null_val, proj_id)
-    description = description.replace(null_val, study_id) + "; "
+    logger.info("Project ID is: " + str(proj_id))
+    alias = alias.replace(null_val, str(proj_id))
+    description = description.replace(null_val, str(study_id)) + "; "
 
     # adding study ID to description
 
@@ -198,7 +188,7 @@ def write_metadata_files(
     Takes a dictionary of Study objects, extracts the metadata and
     writes out a basic tsv using pandas. If output_qiita is True also
     wrtie out separate sample and prep information files with the
-    write_qiita_info_file method
+    write_qebil_info_file method
 
 
     Parameters
@@ -239,14 +229,14 @@ def write_metadata_files(
 
             if output_qiita:
                 # use helper to split into info files
-                write_qiita_info_files(
+                write_qebil_info_files(
                     proj, output_dir, file_prefix, suffix, prep_max
                 )
         else:
             logger.warning("No metadata to write for study: " + proj.study_id)
 
 
-def write_qiita_info_files(
+def write_qebil_info_files(
     study, output_dir, file_prefix, file_suffix="", max_prep=250
 ):
     """Writes out the prep and sample information files
@@ -264,12 +254,13 @@ def write_qiita_info_files(
     This separates files that Qiita will accept as valid for matching the
     prep information file from those that it will reject. Typical causes of
     "TOOMANYREADS" are EBI studies where the index file(s) have been included,
-    or where fastp and/or minimap2 have been run into the same directory without
-    cleaning up the old files. The one circumstance currently not examined is the
-    case where single-end data has been uploaded with an index file, which is
-    interpreted as being paire-end. A check could be added, though likely elsewhere
-    to detect and fix this, along with a fix for sorting out index files included
-    with paired-end data, but this is not in scope for the first launch.
+    or where fastp and/or minimap2 have been run into the same directory
+    without cleaning up the old files. The one circumstance currently not
+    examined is the case where single-end data has been uploaded with an index
+    file, which is interpreted as being paire-end. A check could be added,
+    though likely elsewhere to detect and fix this, along with a fix for
+    sorting out index files included with paired-end data, but this is not in
+    scope for the first launch.
 
     Parameters
     ----------
@@ -318,9 +309,9 @@ def write_qiita_info_files(
         "sample_name"
     ] + prep_info_columns  # add to list for writing out prep files
 
-    if "qiita_prep_file" not in final_df.columns:
+    if "qebil_prep_file" not in final_df.columns:
         logger.warning(
-            "No qiita_prep_file column found, skipping prep"
+            "No qebil_prep_file column found, skipping prep"
             + " info file(s) writing."
         )
     else:
@@ -331,10 +322,10 @@ def write_qiita_info_files(
         ]
         amplicon_type_preps = ["16S", "ITS", "18S"]
 
-        for prep_file in final_df["qiita_prep_file"].unique():
+        for prep_file in final_df["qebil_prep_file"].unique():
             # adding way to check for min essential target gene
             # information where needed
-            prep_df = final_df[final_df["qiita_prep_file"] == prep_file]
+            prep_df = final_df[final_df["qebil_prep_file"] == prep_file]
             if (
                 prep_file.split("_")[0] in amplicon_type_preps
             ):  # check to see if the prep is amplicon-style,
@@ -352,7 +343,7 @@ def write_qiita_info_files(
             ]
             prep_df = prep_df.dropna(axis=1, how="all")
             prep_df_list = [
-                prep_df[i : i + max_prep]
+                prep_df[i: i + max_prep]
                 for i in range(0, prep_df.shape[0], max_prep)
             ]
             prep_count = 0

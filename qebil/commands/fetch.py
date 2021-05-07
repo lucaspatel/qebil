@@ -2,10 +2,6 @@ import click
 from . import cli, add_options
 from os import makedirs, path
 
-from qebil.log import setup_log
-from qebil.output import write_config_files, write_metadata_files
-from qebil.core import Study
-from qebil.tools.util import load_project_file, parse_document, scrape_ebi_ids
 from qebil.commands import (
     _OUTPUT_OPTIONS,
     _METADATA_OPTIONS,
@@ -14,9 +10,15 @@ from qebil.commands import (
     _SUBSAMPLE_OPTIONS,
     _AUGMENT_OPTIONS,
 )
-from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
+from qebil.core import Study
 from qebil.fetch import fetch_fastqs
+from qebil.log import setup_log
+from qebil.normalize import add_emp_info
+from qebil.output import write_config_files, write_metadata_files
 from qebil.process import deplete_on_the_fly
+
+from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
+from qebil.tools.util import load_project_file, parse_document, scrape_ebi_ids
 
 
 def fetch_remote_studies(
@@ -45,22 +47,22 @@ def fetch_remote_studies(
         dict of Study objects with study IDs as keys
 
     """
+        
     study_dict = {}
     if max_samples != "":
         try:
             max_samples = int(max_samples)
-        except:
-            raise Exception(
+        except ValueError:
+            raise ValueError(
                 "Max samples: " + str(max_samples) + " is not type int."
             )
     for p in study_list:
-        ebi_study = Study.from_remote(
+        study_dict[p] = Study.from_remote(
             p,
             full_details=full_details,
             max_samples=max_samples,
             random_subsample=random_subsample,
         )
-        study_dict[p] = ebi_study
 
     return study_dict
 
@@ -179,8 +181,9 @@ _batch_options = [
         multiple=True,
         default=[],
         help=(
-            "Publications (pdf, url, or plain text) containing list of "
-            + " NCBI/SRA or EBI/ENA projects or study accession(s) to retrieve."
+            "Publications (pdf, url, or plain text) containing list of"
+            + " NCBI/SRA or EBI/ENA projects or study accession(s)"
+            + " to retrieve."
         ),
     ),
 ]
@@ -403,9 +406,9 @@ def fetch_project(
         if len(msg) > 0:
             logger.info(msg)
 
-        for l in local_dict.keys():
-            metadata_list.append(local_dict[l])
-            project_list.remove(l)
+        for local_proj in local_dict.keys():
+            metadata_list.append(local_dict[local_proj])
+            project_list.remove(local_proj)
 
     # get study information
     project_dict = fetch_remote_studies(
@@ -435,10 +438,7 @@ def fetch_project(
 
     for proj_id in project_dict.keys():
         proj = project_dict[proj_id]
-        summ_fields = list(select_dict.keys())
-        pre_summary = proj.summarize(summ_fields)
         proj.filter_samples(select_dict)
-        post_summary = proj.summarize(summ_fields)
 
         if qiita:
             proj.populate_preps()
