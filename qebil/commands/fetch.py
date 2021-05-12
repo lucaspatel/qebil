@@ -1,7 +1,7 @@
 import click
-from . import cli, add_options
-from os import makedirs, path
+from os import path
 
+from . import cli, add_options
 from qebil.commands import (
     _OUTPUT_OPTIONS,
     _METADATA_OPTIONS,
@@ -16,9 +16,13 @@ from qebil.log import setup_log
 from qebil.normalize import add_emp_info
 from qebil.output import write_config_files, write_metadata_files
 from qebil.process import deplete_on_the_fly
-
 from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
-from qebil.tools.util import load_project_file, parse_document, scrape_ebi_ids
+from qebil.tools.util import (
+    load_project_file,
+    parse_document,
+    scrape_ebi_ids,
+    setup_output_dir,
+)
 
 
 def fetch_remote_studies(
@@ -47,7 +51,7 @@ def fetch_remote_studies(
         dict of Study objects with study IDs as keys
 
     """
-        
+
     study_dict = {}
     if max_samples != "":
         try:
@@ -346,12 +350,8 @@ def fetch_project(
 
     """
 
-    # output_dir directory
-    if output_dir[-1] != "/":
-        output_dir += "/"
-
-    if not path.exists(output_dir):
-        makedirs(output_dir)
+    # setup output directory
+    output_dir = setup_output_dir(output_dir)
 
     # prepare output and logs
     suffix = ".EBI_metadata"

@@ -35,7 +35,7 @@ class Study:
         """
         self.metadata = md
         self.prep_columns = []
-        self.study_id = "not provided"
+        self.ebi_id = "not provided"
         # A bit conflicted about whether this should be here,
         # seems like a kludge?
         if (
@@ -43,14 +43,19 @@ class Study:
         ):  # assume this is from EBI
             unique_study = self.metadata["study_accession"].unique()
             if len(unique_study) == 1:
-                self.study_id = unique_study[0]
-            elif len(unique_study) ==0:
+                self.ebi_id = unique_study[0]
+                self.populate_details()
+            elif len(unique_study) == 0:
                 logger.warning("No study accession in metadata")
             else:
-                raise ValueError("Metadata file should contain only one "
-                                 + " unique study_accession value."
-                                 + " Found: " + str(unique_study)
-                                )        
+                raise ValueError(
+                    "Metadata file should contain only one "
+                    + " unique study_accession value."
+                    + " Found: "
+                    + str(unique_study)
+                )
+        else:
+            logger.warning("No study accession in metadata")
 
     @property
     def metadata(self):
@@ -78,11 +83,24 @@ class Study:
 
     @details.setter
     def details(self, det):
-        """Gets the details as a dict, and rejects if other type"""
+        """Sets the details as a dict, and rejects if other type"""
         if isinstance(det, dict):
             self._details = det
         else:
             raise ValueError("Expected dict, received " + str(type(det)))
+
+    @property
+    def ebi_id(self):
+        """Gets the EBI ID used to create the study"""
+        return str(self._ebi_id)
+
+    @ebi_id.setter
+    def ebi_id(self, value):
+        """Sets the EBI ID if a string"""
+        if not isinstance(value, str):
+            raise ValueError("Did not receive string, instead: " + str(value))
+        else:
+            self._ebi_id = value
 
     @property
     def study_id(self):
@@ -96,7 +114,7 @@ class Study:
             raise ValueError("Did not receive string, instead: " + str(value))
         else:
             self._study_id = value
-            
+
     @property
     def proj_id(self):
         """Gets the Project ID"""
@@ -148,7 +166,7 @@ class Study:
     @classmethod
     def from_remote(
         cls,
-        study_id,
+        ebi_id,
         fields=[],
         full_details=False,
         max_samples="",
@@ -158,7 +176,7 @@ class Study:
 
         Parameters
         ----------
-        study_id: string
+        ebi_id: string
             ID of the EBI/ENA project number, starts with ERP, SRP, PRJ, etc.
         fields: list
             the list of metadata columns to retrieve, if empty get all
@@ -175,26 +193,27 @@ class Study:
             Study object containing metadata and details
 
         """
-        if not isinstance(study_id, str):
-            raise ValueError("Did not receive string, instead: " + str(study_id))
+        if not isinstance(ebi_id, str):
+            raise ValueError(
+                "Did not receive string, instead: " + str(ebi_id)
+            )
         else:
-
-            md = fetch_ebi_metadata(study_id, fields)
+            md = fetch_ebi_metadata(ebi_id, fields)
             tmp_study = cls(md)
             if len(tmp_study.metadata) > 0:
-                # subset the study if the user requests before the time-consuming
-                # per sample/run metadata retrieval
+                # subset the study if the user requests before the
+                # time-consuming per sample/run metadata retrieval
                 if isinstance(max_samples, int):
                     tmp_study.subset_metadata(max_samples, random_subsample)
 
+                tmp_study.ebi_id = ebi_id
                 tmp_study.populate_sample_names()
                 tmp_study.populate_details(full_details)
-
-                tmp_study.study_id = study_id
-                logger.info("Set study_id to : " +  tmp_study.study_id)
+                logger.info("Set proj_id to : " + str(tmp_study.study_id))
+                logger.info("Set proj_id to : " + str(tmp_study.proj_id))
             else:
-                logger.warning("No study metadata retrieved for " + study_id)
-            
+                logger.warning("No study metadata retrieved for " + ebi_id)
+
             return tmp_study
 
     def populate_details(self, full_details=False):
@@ -216,7 +235,7 @@ class Study:
 
 
         """
-        ebi_accession = self.study_id
+        ebi_accession = self.ebi_id
         ebi_xml_dict = {}
 
         if ebi_accession != "not provided":
@@ -224,67 +243,71 @@ class Study:
             study_accession, project_accession = get_ebi_ids(ebi_xml_dict)
         else:
             study_accession = False
-            
+
         retrieved_details = False
 
         if not study_accession:
-            logger.error("No matching study ID found for project "
-                         + ebi_accession)
+            logger.error("No matching study ID found for " + ebi_accession)
             self.study_id = "not provided"
-        else: # consider simplifying loop to display info by default
+        else:  # consider simplifying loop to display info by default
             if study_accession == ebi_accession:
-                logger.info(study_accession + " is study ID,"
-                            + " retrieved details.")
+                logger.info(
+                    ebi_accession + " is study ID," + " retrieved details."
+                )
                 retrieved_details = True
-                self.proj_id = project_accession
+                self.study_id = str(study_accession)
+                self.proj_id = str(project_accession)
             elif project_accession == ebi_accession:
                 try:
                     # consider refactor to sort specific Errors
                     # could define custom error type for Qebil
                     ebi_xml_dict = fetch_ebi_info(study_accession)
                     if len(ebi_xml_dict) > 0:
-                        logger.warning(
+                        logger.info(
                             ebi_accession
                             + " is project ID."
                             + " Retrieved secondary ID: "
                             + study_accession
                         )
                         retrieved_details = True
-                        self.study_id = study_accession
-                        self.proj_id = project_accession
+                        self.study_id = str(study_accession)
+                        self.proj_id = str(project_accession)
                 except Exception:
                     logger.error(
                         "No matching study ID found for project "
                         + ebi_accession
                     )
-            else:
-                logger.error("No matching study ID found for "
-                             + ebi_accession)
+            elif project_accession:
+                logger.error(
+                    "No matching study ID found for " + str(ebi_accession)
+                )
                 self.study_id = "not provided"
                 self.proj_id = project_accession
-        print("Retrieved details: " + str(retrieved_details))
-        print("Full details: " + str(full_details))
-        
+            else:
+                logger.error("No EBI entry found for " + str(ebi_accession))
+
         if retrieved_details:
-            logger.info("Study info retrieved for"
-                        + ebi_accession
-                        + " Study ID: "
-                        + self.study_id
-                        + " Project ID: "
-                        + self.proj_id)
+            logger.info(
+                "Study info retrieved for"
+                + ebi_accession
+                + " Study ID: "
+                + self.study_id
+                + " Project ID: "
+                + self.proj_id
+            )
             if full_details:
                 self.populate_sample_info()
                 self.populate_expt_info()
         elif full_details:
-            logger.warning("Skipping sample and run info retrieval."
-                           + " No study details retrieved for "
-                           + ebi_accession
-                           )
+            logger.warning(
+                "Skipping sample and run info retrieval."
+                + " No study details retrieved for "
+                + ebi_accession
+            )
         else:
-            logger.warning("No study info retrieved for"
-                            + ebi_accession)
+            logger.warning("No study info retrieved for" + ebi_accession)
 
-        logger.info(ebi_xml_dict) 
+        logger.info(ebi_xml_dict)
         self.details = ebi_xml_dict
 
     def populate_sample_info(self):
@@ -300,8 +323,8 @@ class Study:
         identifier = "secondary_sample_accession"
 
         for index, row in self.metadata.iterrows():
-            # TODO: could be refactored for speed, though need to retrieve info 
-            #  per sample may be a bottleneck here. Marcus provided this ref url:
+            # TODO: could be refactored for speed, though need to retrieve
+            #  per sample may be a bottleneck here. Marcus provided this url:
             # https://engineering.upside.com/a-beginners-guide-to-optimizing-
             # pandas-code-for-speed-c09ef2c6a4d6?gi=fc949808a74c
             # one option may be to extract the identifiers, create a dict of

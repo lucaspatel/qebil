@@ -70,9 +70,14 @@ def qiimp_parser(filename):
         for k in parsed_yml.keys():
             try:
                 key_list = parsed_yml[k].keys()
-                logger.info("Keys loaded for " + str(k) + ": "
-                            + str(key_list) + " in file"
-                            + filename)
+                logger.info(
+                    "Keys loaded for "
+                    + str(k)
+                    + ": "
+                    + str(key_list)
+                    + " in file"
+                    + filename
+                )
             except Exception:
                 valid_format = False
                 logger.warning(

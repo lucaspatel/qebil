@@ -1,10 +1,9 @@
+from os import remove
 import pandas as pd
 import requests
 from xmltodict import parse
-from os import remove
 
 from qebil.log import logger
-
 from qebil.tools.fastq import (
     unpack_fastq_ftp,
     get_read_count,
@@ -29,14 +28,19 @@ def fetch_ebi_info(accession):
 
     """
     xml_dict = {}
-    # could use this list valid_stems=["PRJEB", "PRJNA", "ERP", "SRP", "SRR", "SRS"]
-    # to check format before requesting url
-    url = "http://www.ebi.ac.uk/ena/data/view/" + str(accession) + "&display=xml"
+    # could use this list valid_stems=["PRJEB", "PRJNA", "ERP",
+    # "SRP", "SRR", "SRS"] to check format before requesting url
+    url = (
+        "http://www.ebi.ac.uk/ena/data/view/"
+        + str(accession)
+        + "&display=xml"
+    )
     logger.info(url)
     try:
         response = requests.get(url)
         xml_dict = parse(response.content)
-    except Exception: # TODO: add response exception, and separate out parse
+    except Exception:
+        # TODO: add response exception, and separate out parse
         logger.error(
             "Could not obtain EBI information for "
             + str(accession)
@@ -91,7 +95,7 @@ def fetch_ebi_metadata(study_accession, fields=[]):
             "sample_alias",
             "sample_title",
             "fastq_md5",
-            "study_accession"
+            "study_accession",
         ]
 
     study_df = pd.DataFrame()
@@ -153,6 +157,7 @@ def fetch_fastq_files(
         )
         remote_fp = ftp_dict[read]["ftp"]
         remote_md5 = ftp_dict[read]["md5"]
+        local_read_dict["read" + str(read_num)] = local_fq_path
         if run_prefix in failed_list:
             logger.warning(
                 "Skipping download of " + remote_fp + " Paired file failed."
@@ -168,18 +173,22 @@ def fetch_fastq_files(
                     + " failed."
                 )
                 failed_list.append(run_prefix)
-            else:
-                local_read_dict["read" + str(read_num)] = local_fq_path
 
     if len(failed_list) > 0:
+        raw_reads = "error"
         logger.warning(
-            "The following files failed to download:"
+            "The fastq file(s) for the failed to download for:"
             + str(failed_list)
             + " removing partial"
             + " fastq files."
         )
-        for r in local_read_dict:
-            remove(r)
+        for r in local_read_dict.values():
+            if path.isfile(r):
+                logger.info('Removing ' + r)
+                remove(r)
+            else:
+                logger.warning("Could not remove" + r
+                               + "file does not exist.")
     else:
         if remove_index_file:
             logger.info("Removing index file")
@@ -243,18 +252,33 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
     md = study.metadata
 
     for index in md.index:
+        run_prefix = ""
+        ebi_dict = {}
         try:
             run_prefix = md.at[index, "run_prefix"]
+        except KeyError:
+            logger.warning("No run_prefix in metadata for: " + index)
+        if len(run_prefix) > 0:
             ebi_dict = unpack_fastq_ftp(
                 md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
             )
-            md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
-                run_prefix, ebi_dict, output_dir, remove_index_file
-            )
-        except Exception:
-            logger.warning(
-                "One or more required values missing from metadata:\n"
-                + " 'run_prefix', 'fastq_ftp', 'fastq_md5'"
-            )
+            if len(ebi_dict) > 0:
+                md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
+                    run_prefix, ebi_dict, output_dir, remove_index_file
+                )
+                if md.at[index, "qebil_raw_reads"] != "error":
+                    logger.info(
+                        "Retrieved "
+                        + run_prefix
+                        + " with "
+                        + str(md.at[index, "qebil_raw_reads"])
+                        + " reads."
+                    )
+                else:
+                    logger.warning("Issue retrieving files for " + run_prefix)
+            else:
+                logger.warning(
+                    "No fastq files to download found for\n" + run_prefix
+                )
 
     return md

@@ -40,8 +40,10 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Library sources for restricting search, not case"
-              + " sensitive. Default is [] (no restriction)"),
+        help=(
+            "Library sources for restricting search, not case"
+            + " sensitive. Default is [] (no restriction)"
+        ),
     ),
     click.option(
         "--strategy",
@@ -90,9 +92,11 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Library strategy to restrict search; not case"
-              + ' sensitive. Default is: ["amplicon", "other",'
-              + ' "wgs", "rna-seq", "wcs", "poolclone", "clone"]'),
+        help=(
+            "Library strategy to restrict search; not case"
+            + ' sensitive. Default is: ["amplicon", "other",'
+            + ' "wgs", "rna-seq", "wcs", "poolclone", "clone"]'
+        ),
     ),
     click.option(
         "--platform",
@@ -108,9 +112,11 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Instrument platform to restrict search, not case"
-              + 'sensitive. Default is: ["illumina","pacbio_smrt",'
-              + ' "oxford_nanopore"]'),
+        help=(
+            "Instrument platform to restrict search, not case"
+            + 'sensitive. Default is: ["illumina","pacbio_smrt",'
+            + ' "oxford_nanopore"]'
+        ),
     ),
     click.option(
         "--selection",
@@ -166,19 +172,23 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Library selection method to restrict search."
-              + ' Default is: ["random", "pcr", "random pcr",'
-              + ' "rt-pcr", "cdna", "cdna_randompriming",'
-              + ' "inverse rrna", "inverse rrna selection",'
-              + ' "unspecified", "size fractionation",'
-              + ' "repeat fractionation", "race", "other"]'),
+        help=(
+            "Library selection method to restrict search."
+            + ' Default is: ["random", "pcr", "random pcr",'
+            + ' "rt-pcr", "cdna", "cdna_randompriming",'
+            + ' "inverse rrna", "inverse rrna selection",'
+            + ' "unspecified", "size fractionation",'
+            + ' "repeat fractionation", "race", "other"]'
+        ),
     ),
     click.option(
         "--scientific-name",
         multiple=True,
         default=[],
-        help=("Scientific names to restrict search."
-              + " Default is [] (no restriction)"),
+        help=(
+            "Scientific names to restrict search."
+            + " Default is [] (no restriction)"
+        ),
     ),
     click.option(
         "--no-filter",
@@ -195,8 +205,10 @@ _SUBSAMPLE_OPTIONS = [
     click.option(
         "--max-samples",
         default="",
-        help=("Max number of samples to grab from the study."
-              + " Default is '"" (all samples)"),
+        help=(
+            "Max number of samples to grab from the study." + " Default is '"
+            " (all samples)"
+        ),
     ),
     click.option(
         "--random-subsample",
@@ -204,7 +216,8 @@ _SUBSAMPLE_OPTIONS = [
         help=(
             "When sampling, randomly select subset for processing."
             + "N.B. must supply a number with --max_samples."
-            + " Default is no flag (False)."),
+            + " Default is no flag (False)."
+        ),
     ),
 ]
 
@@ -244,7 +257,8 @@ _AUGMENT_OPTIONS = [
         is_flag=True,
         help=(
             "Update prep information with EMP protocol standards "
-            + " for 16S rRNA sequencing. Default is no flag (False)."),
+            + " for 16S rRNA sequencing. Default is no flag (False)."
+        ),
     ),
 ]
 
@@ -262,7 +276,8 @@ _OUTPUT_OPTIONS = [
         default=True,
         help=(
             "Sets logging level for information. If --quiet (default)"
-            + " logs will only be written to log file."),
+            + " logs will only be written to log file."
+        ),
     ),
 ]
 
@@ -280,8 +295,10 @@ _PROCESS_OPTIONS = [
     click.option(
         "--keep-files",
         is_flag=True,
-        help=("Whether or not to retain raw and intermediate fastq files."
-              + " Default is no flag (False)."),
+        help=(
+            "Whether or not to retain raw and intermediate fastq files."
+            + " Default is no flag (False)."
+        ),
     ),
 ]
 

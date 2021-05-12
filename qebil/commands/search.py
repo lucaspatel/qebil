@@ -1,15 +1,14 @@
 import click
-from . import cli, add_options
-from qebil.log import setup_log
-from os import makedirs, path
 import pandas as pd
 import requests
 from xmltodict import parse
 
+from . import cli, add_options
 from qebil.core import Study
 from qebil.tools.metadata import set_criteria
 from qebil.commands import _OUTPUT_OPTIONS, _SUBSET_OPTIONS
-from qebil.log import get_timestamp
+from qebil.log import get_timestamp, setup_log
+from qebil.tools.util import setup_output_dir
 
 
 def keyword_search(search, filter_dict={}, summarize=[]):
@@ -207,9 +206,8 @@ def search_ebi(
     None
 
     """
-    # output_dir directory
-    if not path.exists(output_dir):
-        makedirs(output_dir)
+    # setup output directory
+    output_dir = setup_output_dir(output_dir)
 
     if prefix == "":
         prefix = get_timestamp()

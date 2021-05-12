@@ -121,7 +121,7 @@ class StudyTest(unittest.TestCase):
             self.test_study_valid_id, fields=self.test_fields_invalid
         )
         assert_frame_not_equal(valid_study.metadata.sort_index(axis=1), test_df.sort_index(axis=1))
-        self.assertNotEqual(valid_study.study_id, self.test_study_valid_id)
+        self.assertNotEqual(valid_study.ebi_id, self.test_study_valid_id)
         for f in self.test_fields_invalid:
             self.assertFalse(f in valid_study.metadata.columns)
 
@@ -459,7 +459,7 @@ class StudyTest(unittest.TestCase):
             ]
         )
         test_study = Study()
-        test_study.study_id = accession
+        test_study.ebi_id = accession
         test_study.populate_details()
         self.assertEqual(test_study.details, test_study_dict)
 

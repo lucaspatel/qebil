@@ -84,7 +84,7 @@ def normalize_metadata(
         file_name = prefix + f.replace(source_dir, "").replace(ext, "")
         output_df, msg = apply_validation(tmp_md, qiimp_parser(validator))
 
-        if qebil_standard:
+        if qiita_standard:
             output_df, tmp_msg = apply_validation(
                 output_df, qiimp_parser(default_mapping)
             )

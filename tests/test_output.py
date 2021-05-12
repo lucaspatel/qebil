@@ -405,6 +405,7 @@ class OutputTest(unittest.TestCase):
     def test_write_metadata_files(self):
         test_study = Study.from_remote(test_study_id, full_details=True)
         test_study.populate_preps()
+        print(test_study.details)
         test_study_dict = {test_study_id: test_study}
         write_metadata_files(
             test_study_dict,

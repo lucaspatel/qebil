@@ -111,7 +111,6 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                 run_prefix, raw_reads, model, output_dir, cpus, keep_files
             )
             filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
-            print("filt reads post fastp:" + str(filtered_reads))
             md.at[index, "qebil_frac_reads_passing_filter"] = int(
                 filtered_reads
             ) / int(raw_reads)
@@ -142,8 +141,6 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                     md.at[index, "qebil_quality_filtered_reads"]
                 )
                 mb_reads = str(md.at[index, "qebil_non_host_reads"])
-                print("filt reads post mm2:" + str(filtered_reads))
-                print("mb reads post mm2:" + str(mb_reads))
                 md.at[index, "qebil_frac_non_host_reads"] = int(
                     mb_reads
                 ) / int(filtered_reads)
@@ -495,7 +492,5 @@ def run_host_depletion(
                 if path.isfile(c):
                     remove(c)
             mb_reads = "minimap2 error"
-
-    print("in rhd,mb_reads are:" + mb_reads)
 
     return mb_reads

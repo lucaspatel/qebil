@@ -3,6 +3,7 @@ import glob
 from qebil.log import logger
 from qebil.tools.util import get_ebi_ids
 
+
 def write_config_files(proj_dict, output_dir, prefix):
     """Helper function for handling Study objects to write config files
 
@@ -86,15 +87,15 @@ def write_config_file(xml_dict, prefix=""):
     )
 
     config_string = config_string + "\nreprocess = False"
-    study_id, proj_id  = get_ebi_ids(xml_dict)
-    
+    study_id, proj_id = get_ebi_ids(xml_dict)
+
     parse_dict = xml_dict["STUDY_SET"]["STUDY"]
     null_val = "XXEBIXX"
 
     title = null_val
     alias = "\nstudy_alias = " + null_val
     abstract = "\nstudy_abstract = " + null_val
-    description = "\nstudy_description = " + null_val    
+    description = "\nstudy_description = " + null_val
 
     # setting alias to project ID and ignoring EBI alias unless
     # no description found
@@ -214,9 +215,9 @@ def write_metadata_files(
         # prepend file prefix if not empty
 
         if prefix != "":
-            file_prefix = prefix + "_" + proj.study_id
+            file_prefix = prefix + "_" + proj.ebi_id
         else:
-            file_prefix = proj.study_id
+            file_prefix = proj.ebi_id
 
         # extract the Study metadata
         md = proj.metadata
@@ -233,7 +234,7 @@ def write_metadata_files(
                     proj, output_dir, file_prefix, suffix, prep_max
                 )
         else:
-            logger.warning("No metadata to write for study: " + proj.study_id)
+            logger.warning("No metadata to write for: " + proj.ebi_id)
 
 
 def write_qebil_info_files(

@@ -214,7 +214,9 @@ def format_prep_type(row, sample_name):
         "RAD-Seq": "AMBIGUOUS",
     }
     ebi_strat = row["library_strategy"]
-    logger.info("EBI strategy is:" + str(ebi_strat) + " for " + str(sample_name))
+    logger.info(
+        "EBI strategy is:" + str(ebi_strat) + " for " + str(sample_name)
+    )
 
     prep_type = "AMBIGUOUS"
 
@@ -347,7 +349,9 @@ def check_sample_type(input_df, validation_dict={}):
             if st_col_dict[s] > max_matches:
                 max_matches = st_col_dict[s]
                 match_col = s
-        logger.info("Automatically selected column: " + match_col + "to copy.")
+        logger.info(
+            "Automatically selected column: " + match_col + "to copy."
+        )
         input_df["qebil_sample_type"] = input_df[match_col].apply(
             lambda x: x.lower()
         )
@@ -628,15 +632,12 @@ def scrub_special_chars(input_string, custom_dict={}, sub="_"):
     try:
         for k in custom_dict.keys():
             clean_string = clean_string.replace(k, custom_dict[k])
-        print(clean_string)
         for k in priority_dict.keys():
             if k != sub:
                 clean_string = clean_string.replace(k, priority_dict[k])
-        print(clean_string)
         for k in replace_dict.keys():
             if k != sub:
-                clean_string = clean_string.replace(k, replace_dict[k])        
-        print(clean_string)
+                clean_string = clean_string.replace(k, replace_dict[k])
         # remove leading and trailing substitute chars
         clean_string = clean_string.strip(sub)
 
@@ -653,9 +654,13 @@ def scrub_special_chars(input_string, custom_dict={}, sub="_"):
         )
 
     if clean_string != str(input_string):
-        logger.warning("String " + input_string + " contained invalid "
-                       + " characters. Scrubbed string to:"
-                       + clean_string)
+        logger.warning(
+            "String "
+            + input_string
+            + " contained invalid "
+            + " characters. Scrubbed string to:"
+            + clean_string
+        )
 
     return clean_string
 
@@ -684,8 +689,11 @@ def check_qebil_restricted_column(col):
     restricted_term_lower = [term.lower() for term in restricted_qebil_terms]
 
     if col in restricted_term_lower:
-        logger.warning(col + " in list of SQL/Qiita restricted terms,"
-                       + " prepending with 'user_' but keeping values.")
+        logger.warning(
+            col
+            + " in list of SQL/Qiita restricted terms,"
+            + " prepending with 'user_' but keeping values."
+        )
         col = "user_" + col
 
     return col
@@ -717,9 +725,16 @@ def enforce_start_characters(col):
 
     if clean_col != col:
         # TODO: pythonify strings?
-        logger.warning("Column " + str(col) + " contained invalid"
-                       + " start character: " + str(test_char) + " Scrubbed"
-                       + " column name to new column: " + str(clean_col))
+        logger.warning(
+            "Column "
+            + str(col)
+            + " contained invalid"
+            + " start character: "
+            + str(test_char)
+            + " Scrubbed"
+            + " column name to new column: "
+            + str(clean_col)
+        )
 
     return clean_col
 
@@ -741,7 +756,7 @@ def clean_nulls(potential_null, supp_dict={}):
 
     """
     resolved_null = potential_null
-    
+
     for s in supp_dict.keys():
         NULL_DICT[s] = supp_dict[s]
 
@@ -754,8 +769,13 @@ def clean_nulls(potential_null, supp_dict={}):
             resolved_null = NULL_DICT[test_null]
 
         if resolved_null != potential_null:
-            logger.warning("Cleaned null value " + potential_null + " to"
-                           + " standardardized null value: " + resolved_null)
+            logger.warning(
+                "Cleaned null value "
+                + potential_null
+                + " to"
+                + " standardardized null value: "
+                + resolved_null
+            )
 
         return resolved_null
 
@@ -763,6 +783,5 @@ def clean_nulls(potential_null, supp_dict={}):
 def clean_column_name(col):
     """Helper function to call other column cleanup methods"""
     return check_qebil_restricted_column(
-            enforce_start_characters(
-                scrub_special_chars(col).lower()
-        ))
+        enforce_start_characters(scrub_special_chars(col).lower())
+    )
