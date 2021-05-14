@@ -683,29 +683,35 @@ class Study:
                     + str(md.columns)
                 )
 
-            for index, row in md.iterrows():
-                sample_name = index
-                prep_type = format_prep_type(row, index)
-                layout = md.at[index, "library_layout"]
+            # adding catch for single files, assuming genome isolate
+            if len(md)==1:
+                layout = md.loc[0]["library_layout"]
+                md["qebil_prep_file"]= layout + "_Genome_Isolate_0"
 
-                if prep_type not in sample_count_dict:
-                    sample_count_dict[prep_type] = {layout: {sample_name: 0}}
-                elif layout not in sample_count_dict[prep_type]:
-                    sample_count_dict[prep_type] = {layout: {sample_name: 0}}
-                elif sample_name not in sample_count_dict[prep_type][layout]:
-                    sample_count_dict[prep_type][layout][sample_name] = 0
-                else:
-                    sample_count_dict[prep_type][layout][sample_name] += 1
+            else:
+                for index, row in md.iterrows():
+                    sample_name = index
+                    prep_type = format_prep_type(row, index)
+                    layout = md.at[index, "library_layout"]
 
-                # this sets the key used for splitting the files into
-                # prep_info templates
-                md.at[index, "qebil_prep_file"] = (
-                    layout
-                    + "_"
-                    + prep_type
-                    + "_"
-                    + str(sample_count_dict[prep_type][layout][sample_name])
-                )
+                    if prep_type not in sample_count_dict:
+                        sample_count_dict[prep_type] = {layout: {sample_name: 0}}
+                    elif layout not in sample_count_dict[prep_type]:
+                        sample_count_dict[prep_type] = {layout: {sample_name: 0}}
+                    elif sample_name not in sample_count_dict[prep_type][layout]:
+                        sample_count_dict[prep_type][layout][sample_name] = 0
+                    else:
+                        sample_count_dict[prep_type][layout][sample_name] += 1
+
+                    # this sets the key used for splitting the files into
+                    # prep_info templates
+                    md.at[index, "qebil_prep_file"] = (
+                        layout
+                        + "_"
+                        + prep_type
+                        + "_"
+                        + str(sample_count_dict[prep_type][layout][sample_name])
+                    )
 
             for rc in _READ_COLUMNS:
                 if rc not in self.metadata.columns:

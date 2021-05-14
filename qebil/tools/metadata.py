@@ -185,11 +185,11 @@ def format_prep_type(row, sample_name):
     }
     library_strat_to_qebil_dict = {
         "POOLCLONE": "AMBIGUOUS",
-        "CLONE": "Genome Isolate",
+        "CLONE": "Genome_Isolate",
         "CLONEEND": "AMBIGUOUS",
         "WGS": "Metagenomic",
         "WGA": "Metagenomic",
-        "WCS": "Genome Isolate",
+        "WCS": "Genome_Isolate",
         "WXS": "Metagenomic",
         "ChIP-Seq": "Metagenomic",
         "RNA-Seq": "Metatranscriptomic",
