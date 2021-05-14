@@ -4,7 +4,7 @@ import pandas as pd
 import PyPDF2
 import re
 import requests
-from requests.exceptions import RequestException
+# from requests.exceptions import RequestException
 import urllib
 from urllib.request import urlretrieve
 
@@ -96,7 +96,7 @@ def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
             urlretrieve("ftp://" + ftp_path, filepath)
             checksum = check_download_integrity(filepath, remote_checksum)
             return checksum
-        except urllib.error.URLError: #RequestException:
+        except urllib.error.URLError:  # RequestException:
             logger.warning(
                 "Issue with urlretrieve for "
                 + "download of file:"
@@ -334,3 +334,11 @@ def setup_output_dir(output_dir):
         makedirs(output_dir)
 
     return output_dir
+
+
+def detect_qiita_study(metadata):
+    """Simple helper function to catch when a study is already in Qiita"""
+    if "qiita_study_id" in metadata.columns:
+        return metadata["qiita_study_id"].unique()
+    else:
+        return False

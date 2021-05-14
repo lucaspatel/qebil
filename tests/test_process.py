@@ -6,10 +6,15 @@ from os import path
 from shutil import copy
 import pandas as pd
 import glob
+from qebil.tools.util import setup_output_dir
 
-this_dir, this_filename = path.split(__file__)
-_test_support_dir = path.join(this_dir, "support_files")
-_test_output_dir = path.join(this_dir, "test_output/")
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")
+
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 test_study_id = "SRP283872"
 
 
@@ -23,10 +28,10 @@ class ProcessTest(unittest.TestCase):
             test_study_id, full_details=True, max_samples=2
         )
         md = deplete_on_the_fly(
-            test_study, output_dir=_test_output_dir, keep_files=True
+            test_study, output_dir=_TEST_OUTPUT_DIR, keep_files=True
         )
         for index in md.index:
-            run_prefix = _test_output_dir + md.at[index, "run_prefix"]
+            run_prefix = _TEST_OUTPUT_DIR + md.at[index, "run_prefix"]
             expected_raw_reads = str(md.at[index, "qebil_raw_reads"])
             expected_filtered_reads = str(
                 md.at[index, "qebil_quality_filtered_reads"]
@@ -91,7 +96,7 @@ class ProcessTest(unittest.TestCase):
 
         self.assertEqual(expected_filtered_paired_read_count,run_fastp(paired_reads_prefix,paired_read_count,keep_raw=True))
         self.assertEqual(expected_filtered_read_1_only_count,run_fastp(read_1_only_prefix,read_1_only_count,keep_raw=True))
-        self.assertTrue(path.isdir(_test_output_dir + "fastp_reports/"))
+        self.assertTrue(path.isdir(_TEST_OUTPUT_DIR + "fastp_reports/"))
         self.assertTrue(path.isfile('temp test file'))
         self.assertTrue(path.isfile('temp test file'))
 
@@ -118,7 +123,7 @@ class ProcessTest(unittest.TestCase):
         self.assertEqual(None, run_host_depletion(too_many_reads_prefix,0))
         self.assertEqual(None, run_host_depletion(paired_reads_prefix,0))
         self.assertEqual('not determined',run_host_depletion(corrupt_file_prefix,0))
-        self.assertTrue(path.isdir(_test_output_dir + "fastp_reports/"))
+        self.assertTrue(path.isdir(_TEST_OUTPUT_DIR + "fastp_reports/"))
 
         self.assertEqual(expected_filtered_paired_read_count,run_host_depletion(paired_reads_prefix,paired_read_count, keep=True))
         self.assertEqual(expected_filtered_read_1_only_count,run_host_depletion(read_1_only_prefix,read_1_only_count, keep=True))

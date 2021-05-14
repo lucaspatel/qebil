@@ -8,11 +8,15 @@ import unittest
 from os import path
 import glob
 
-_THIS_DIR, this_filename = path.split(__file__)
+from qebil.tools.util import setup_output_dir
+
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
 _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
 
 _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class fastqTest(unittest.TestCase):
@@ -28,9 +32,7 @@ class fastqTest(unittest.TestCase):
             remove(c)
 
     def test_check_valid_fastq(self):
-        test_fastq_path_r1 = (
-            _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
-        )
+        test_fastq_path_r1 = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
         test_corrupt_fastq_path = (
             _TEST_SUPPORT_DIR + "/corrupt_fastq1.fastq.gz"
         )
@@ -39,13 +41,9 @@ class fastqTest(unittest.TestCase):
         self.assertFalse(check_valid_fastq(test_corrupt_fastq_path))
 
     def test_get_read_count(self):
-        test_fastq_path_r1 = (
-            _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
-        )
-        test_fastq_path_r2 = (
-            _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
-        )
-        test_read_count_expected = '1125866'
+        test_fastq_path_r1 = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
+        test_fastq_path_r2 = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
+        test_read_count_expected = "1125866"
 
         test_read_count = get_read_count(
             test_fastq_path_r1, test_fastq_path_r2
@@ -80,9 +78,7 @@ class fastqTest(unittest.TestCase):
         self.assertEqual(test_unpack_result, test_read_dict)
 
     def test_check_fastq_tail(self):
-        test_fastq_path_r1 = (
-            _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
-        )
+        test_fastq_path_r1 = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
         test_corrupt_fastq_path = (
             _TEST_SUPPORT_DIR + "/corrupt_fastq1.fastq.gz"
         )

@@ -6,17 +6,19 @@ from qebil.tools.util import (
     parse_document,
 )
 import unittest
-from os import path
+from os import path, remove
 from shutil import copy
 import glob
 
-_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+from qebil.tools.util import setup_output_dir
 
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
 _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
 
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
 
-_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output")
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class utilTest(unittest.TestCase):
@@ -88,7 +90,7 @@ class utilTest(unittest.TestCase):
             "https://www.nature.com/articles/s41598-021-83922-6.pdf"
         )
 
-        self.assertEqual(len(tokens_html), 84229)
+        self.assertEqual(len(tokens_html), 84226)
         self.assertEqual(len(tokens_pdf), 15771)
 
     def scrape_ebi_ids(self):

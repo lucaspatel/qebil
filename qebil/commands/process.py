@@ -10,6 +10,7 @@ from qebil.tools.fastq import (
     check_fastq_tail,
     get_read_count,
 )
+from qebil.tools.util import setup_output_dir
 
 _PROCESS_OPTIONS = [
     click.option(

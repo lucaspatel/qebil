@@ -10,6 +10,45 @@ from qebil.fetch import fetch_ebi_info, fetch_ebi_metadata
 from qebil.tools.util import get_ebi_ids
 
 
+_QEBIL_PREP_INFO_COLUMNS = [
+    "run_prefix",
+    "fastq_ftp",
+    "fastq_md5",
+    "study_accession",
+    "experiment_accession",
+    "platform",
+    "instrument_model",
+    "library_strategy",
+    "library_source",
+    "library_layout",
+    "library_selection",
+    "fastq_ftp",
+    "ena_checklist",
+    "ena_spot_count",
+    "ena_base_count",
+    "ena_first_public",
+    "ena_last_update",
+    "instrument_platform",
+    "submitted_format",
+    "sequencing_method",
+    "target_gene",
+    "target_subfragment",
+    "primer",
+    "run_accession",
+    "qebil_ebi_import",
+    "qebil_prep_file",
+]
+
+
+_READ_COLUMNS = [
+    "qebil_raw_reads",
+    "qebil_quality_filtered_reads",
+    "qebil_non_host_reads",
+    "qebil_frac_reads_passing_filter",
+    "qebil_frac_non_host_reads",
+]
+
+
 class Study:
     def __init__(self, md=pd.DataFrame()):
         """Basic constructor
@@ -582,9 +621,7 @@ class Study:
             lib_dfs_to_combine.append(lib_subset)
 
         # now recombine subsets into one
-        if len(lib_dfs_to_combine) >= 1:
-            md = pd.concat(lib_dfs_to_combine)
-        else:
+        if len(lib_dfs_to_combine) == 0:
             logger.warning(
                 "No DataFrames to combine. The list of library "
                 + "strategies detected were: "
@@ -592,10 +629,18 @@ class Study:
                 + " for project: "
                 + str(self.study_id)
             )
+        else:
+            md = pd.concat(lib_dfs_to_combine)
 
-        # prepend sample name for easier alignment
-        md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
-        md = md.set_index("sample_name")
+            # prepend sample name for easier alignment
+            # if the data for some reason has a run_prefix already, replace it
+            if "run_prefix" in md.columns:
+                logger.warning("This may be a Qiita study."
+                               + " Check library names.")
+                md = md.rename({"run_prefix": "ena_run_prefix"}, axis=1)
+
+            md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
+            md = md.set_index("sample_name")
 
         self.metadata = md
 
@@ -624,68 +669,46 @@ class Study:
         md = qebil_format(self.metadata)
         sample_count_dict = {}
 
-        for index, row in md.iterrows():
-            sample_name = index
-            prep_type = format_prep_type(row, index)
+        if len(md) == 0:
+            logger.error("Failed to create preps, no samples in metadata")
+        else:
+            try:
+                md["platform"] = md["instrument_platform"]
+            except KeyError:
+                logger.error(
+                    "'instrument_platform' not found in metadata:"
+                    + str(md.columns)
+                )
 
-            if prep_type not in sample_count_dict.keys():
-                sample_count_dict[prep_type] = {sample_name: 0}
-            elif sample_name not in sample_count_dict[prep_type].keys():
-                sample_count_dict[prep_type][sample_name] = 0
-            else:
-                sample_count_dict[prep_type][sample_name] += 1
+            for index, row in md.iterrows():
+                sample_name = index
+                prep_type = format_prep_type(row, index)
+                layout = md.at[index, "library_layout"]
 
-            # this sets the key used for splitting the files into
-            # prep_info templates
-            md.at[index, "qebil_prep_file"] = (
-                prep_type
-                + "_"
-                + str(sample_count_dict[prep_type][sample_name])
-            )
+                if prep_type not in sample_count_dict:
+                    sample_count_dict[prep_type] = {layout: {sample_name: 0}}
+                elif layout not in sample_count_dict[prep_type]:
+                    sample_count_dict[prep_type] = {layout: {sample_name: 0}}
+                elif sample_name not in sample_count_dict[prep_type][layout]:
+                    sample_count_dict[prep_type][layout][sample_name] = 0
+                else:
+                    sample_count_dict[prep_type][layout][sample_name] += 1
 
-        qebil_prep_info_columns = [
-            "run_prefix",
-            "fastq_ftp",
-            "fastq_md5",
-            "study_accession",
-            "experiment_accession",
-            "platform",
-            "instrument_model",
-            "library_strategy",
-            "library_source",
-            "library_layout",
-            "library_selection",
-            "fastq_ftp",
-            "ena_checklist",
-            "ena_spot_count",
-            "ena_base_count",
-            "ena_first_public",
-            "ena_last_update",
-            "instrument_platform",
-            "submitted_format",
-            "sequencing_method",
-            "target_gene",
-            "target_subfragment",
-            "primer",
-            "run_accession",
-            "qebil_ebi_import",
-            "qebil_prep_file",
-        ]
+                # this sets the key used for splitting the files into
+                # prep_info templates
+                md.at[index, "qebil_prep_file"] = (
+                    layout
+                    + "_"
+                    + prep_type
+                    + "_"
+                    + str(sample_count_dict[prep_type][layout][sample_name])
+                )
 
-        read_columns = [
-            "qebil_raw_reads",
-            "qebil_quality_filtered_reads",
-            "qebil_non_host_reads",
-            "qebil_frac_reads_passing_filter",
-            "qebil_frac_non_host_reads",
-        ]
-        for rc in read_columns:
-            if rc not in self.metadata.columns:
-                md[rc] = "not determined"
-
-        md["platform"] = md["instrument_platform"]
+            for rc in _READ_COLUMNS:
+                if rc not in self.metadata.columns:
+                    md[rc] = "not determined"
 
         self.metadata = md
         self.prep_columns = (
-            self.prep_columns + qebil_prep_info_columns + read_columns
+            self.prep_columns + _QEBIL_PREP_INFO_COLUMNS + _READ_COLUMNS
         )

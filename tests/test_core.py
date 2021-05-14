@@ -7,8 +7,11 @@ from pandas.testing import assert_frame_equal
 # This is the class we want to test. So, we need to import it
 from qebil.core import Study
 
-_this_dir, _this_filename = path.split(__file__)
-_test_support_dir = path.join(_this_dir, "support_files")
+from qebil.tools.util import setup_output_dir
+
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")
 
 
 def assert_frame_not_equal(*args, **kwargs):
@@ -45,8 +48,8 @@ class StudyTest(unittest.TestCase):
     md_dict_list = [md_dict_basic, md_dict_invalid_sample]
 
     test_study_valid_id = "SRP283872"
-    test_study_valid_tsv = _test_support_dir + "/test_study_valid.tsv"
-    test_prep_valid_tsv = _test_support_dir + "/test_prep_valid.tsv"
+    test_study_valid_tsv = _TEST_SUPPORT_DIR + "/test_study_valid.tsv"
+    test_prep_valid_tsv = _TEST_SUPPORT_DIR + "/test_prep_valid.tsv"
     test_study_invalid_id = "NOT A STUDY"
     test_study_numeric = 123
     test_study_mixed = "SRP276821"
@@ -97,8 +100,10 @@ class StudyTest(unittest.TestCase):
         for m in self.md_dict_list:
             from_dict_df = pd.DataFrame.from_dict(m)
             study_from_dataframe = Study(from_dict_df)
-            assert_frame_equal(study_from_dataframe.metadata.sort_index(axis=1),
-                               from_dict_df.sort_index(axis=1))
+            assert_frame_equal(
+                study_from_dataframe.metadata.sort_index(axis=1),
+                from_dict_df.sort_index(axis=1),
+            )
 
     def test_study_creation_from_remote_valid(self):
         valid_study = Study.from_remote(
@@ -110,7 +115,10 @@ class StudyTest(unittest.TestCase):
         test_df["sample_name"] = test_df["sample_accession"]
         test_df = test_df.set_index("sample_name")
         # print(valid_study.metadata.columns)
-        assert_frame_equal(valid_study.metadata.sort_index(axis=1), test_df.sort_index(axis=1))
+        assert_frame_equal(
+            valid_study.metadata.sort_index(axis=1),
+            test_df.sort_index(axis=1),
+        )
         self.assertEqual(valid_study.study_id, self.test_study_valid_id)
 
     def test_study_creation_from_remote_invalid_fields(self):
@@ -120,7 +128,10 @@ class StudyTest(unittest.TestCase):
         valid_study = Study.from_remote(
             self.test_study_valid_id, fields=self.test_fields_invalid
         )
-        assert_frame_not_equal(valid_study.metadata.sort_index(axis=1), test_df.sort_index(axis=1))
+        assert_frame_not_equal(
+            valid_study.metadata.sort_index(axis=1),
+            test_df.sort_index(axis=1),
+        )
         self.assertNotEqual(valid_study.ebi_id, self.test_study_valid_id)
         for f in self.test_fields_invalid:
             self.assertFalse(f in valid_study.metadata.columns)
@@ -156,7 +167,9 @@ class StudyTest(unittest.TestCase):
         )
         prep_cols = test_df.columns
         prep_subset = test_study.metadata[prep_cols]
-        assert_frame_equal(prep_subset.sort_index(axis=1), test_df.sort_index(axis=1))
+        assert_frame_equal(
+            prep_subset.sort_index(axis=1), test_df.sort_index(axis=1)
+        )
 
     def test_filter_samples(self):
         test_study = Study.from_remote(

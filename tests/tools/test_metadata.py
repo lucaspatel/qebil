@@ -17,10 +17,15 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 from os import path
 import glob
+from qebil.tools.util import setup_output_dir
 
-this_dir, this_filename = path.split(__file__)
-_test_support_dir = path.join(this_dir, "..", "support_files")
-_test_output_dir = path.join(this_dir, "test_output/")
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
+
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class metadataTest(unittest.TestCase):
@@ -31,7 +36,7 @@ class metadataTest(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         # clean up the directory at the start
-        cleanup_list = glob.glob(_test_output_dir + "/*.EBI_metadata.tsv")
+        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "*.EBI_metadata.tsv")
         for c in cleanup_list:
             remove(c)
 
@@ -94,11 +99,11 @@ class metadataTest(unittest.TestCase):
         }
         expected_df = pd.DataFrame.from_dict(expected_dict)
         qebil_df = load_metadata(
-            _test_support_dir + "/test_study_valid_qiita.tsv"
+            _TEST_SUPPORT_DIR + "/test_study_valid_qiita.tsv"
         )
-        q2_df = load_metadata(_test_support_dir + "/test_study_valid_q2.tsv")
+        q2_df = load_metadata(_TEST_SUPPORT_DIR + "/test_study_valid_q2.tsv")
         qebil_csv_df = load_metadata(
-            _test_support_dir + "/test_study_valid_q2.csv"
+            _TEST_SUPPORT_DIR + "/test_study_valid_q2.csv"
         )
 
         assert_frame_equal(expected_df, qebil_df)
@@ -289,7 +294,7 @@ class metadataTest(unittest.TestCase):
             scrub_special_chars(test_special_string_raw),
             test_special_string_scrubbed,
         )
-        self.assertEqual(scrub_special_chars(1), '1')
+        self.assertEqual(scrub_special_chars(1), "1")
 
         test_custom_replace_input = "A_acid"
         test_custom_replace_dict_upper = {"A": "alpha"}
@@ -351,7 +356,7 @@ class metadataTest(unittest.TestCase):
                 self.assertEqual(
                     clean_nulls(null, test_supplement_dict), null
                 )
-             """   
+             """
         for null in test_na_list:
             self.assertEqual(clean_nulls(null), "not applicable")
 
@@ -360,8 +365,6 @@ class metadataTest(unittest.TestCase):
 
         for null in test_np_list:
             self.assertEqual(clean_nulls(null), "not provided")
-
-        
 
     def test_clean_column_name(self):
         test_special_string_raw = (
@@ -418,13 +421,13 @@ class metadataTest(unittest.TestCase):
 
     def test_detect_merger_column(self):
         base_df = pd.read_csv(
-            _test_support_dir + "/SRP116878_sample_info.EBI_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/SRP116878_sample_info.EBI_metadata.tsv",
             sep="\t",
             header=0,
             dtype=str,
         )
         merge_df = pd.read_csv(
-            _test_support_dir + "/test_merger_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/test_merger_metadata.tsv",
             sep="\t",
             header=0,
             dtype=str,
@@ -435,19 +438,19 @@ class metadataTest(unittest.TestCase):
 
     def test_merge_metadata(self):
         base_df = pd.read_csv(
-            _test_support_dir + "/SRP116878_sample_info.EBI_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/SRP116878_sample_info.EBI_metadata.tsv",
             sep="\t",
             header=0,
             dtype=str,
         )
         merge_df = pd.read_csv(
-            _test_support_dir + "/test_merger_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/test_merger_metadata.tsv",
             sep="\t",
             header=0,
             dtype=str,
         )
         expected_df = pd.read_csv(
-            _test_support_dir + "/test_merged_md.tsv",
+            _TEST_SUPPORT_DIR + "/test_merged_md.tsv",
             sep="\t",
             header=0,
             dtype=str,
@@ -458,19 +461,19 @@ class metadataTest(unittest.TestCase):
 
     def test_merge_metadata_auto(self):
         base_df = pd.read_csv(
-            _test_support_dir + "/SRP116878_sample_info.EBI_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/SRP116878_sample_info.EBI_metadata.tsv",
             sep="\t",
             header=0,
             dtype=str,
         )
         merge_df = pd.read_csv(
-            _test_support_dir + "/test_merger_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/test_merger_metadata.tsv",
             sep="\t",
             header=0,
             dtype=str,
         )
         expected_df = pd.read_csv(
-            _test_support_dir + "/test_merged_md.tsv",
+            _TEST_SUPPORT_DIR + "/test_merged_md.tsv",
             sep="\t",
             header=0,
             dtype=str,

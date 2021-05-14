@@ -7,10 +7,15 @@ import unittest
 from os import path, remove
 import glob
 from click.testing import CliRunner
+from qebil.tools.util import setup_output_dir
 
-_this_dir, _this_filename = path.split(__file__)
-_test_support_dir = path.join(_this_dir, "..", "support_files")
-_test_output_dir = path.join(_this_dir, "..", "test_output/")
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
+
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class fetchTest(unittest.TestCase):
@@ -21,7 +26,7 @@ class fetchTest(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         # clean up the directory at the start
-        cleanup_list = glob.glob(_test_output_dir + "/*.EBI_metadata.tsv")
+        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
         for c in cleanup_list:
             remove(c)
 
@@ -47,7 +52,7 @@ class fetchTest(unittest.TestCase):
             test_random_subsample,
         )
         self.assertEqual(
-            result_dict[test_study_list[0]].study_id, test_study_list[0]
+            result_dict[test_study_list[0]].proj_id, test_study_list[0]
         )
         self.assertEqual(len(result_dict[test_study_list[0]].metadata), 36)
         self.assertEqual(
@@ -55,7 +60,7 @@ class fetchTest(unittest.TestCase):
         )
         self.assertEqual(len(result_dict[test_study_list[1]].metadata), 36)
         self.assertNotEqual(
-            result_dict[test_study_list[0]].study_id, test_study_list[1]
+            result_dict[test_study_list[0]].proj_id, test_study_list[1]
         )
 
         results_dict_1 = fetch_remote_studies(
@@ -77,18 +82,6 @@ class fetchTest(unittest.TestCase):
         )
 
         self.assertCountEqual(results_dict_2.keys(), results_dict_3.keys())
-        self.assertRaises(
-            fetch_remote_studies(
-                test_study_list, test_full_details, test_random_subsample
-            )
-        )
-        self.assertRaises(
-            fetch_remote_studies(
-                test_study_list,
-                test_full_details,
-                max_samples=test_random_subsample,
-            )
-        )
 
         results_dict_4 = fetch_remote_studies(
             test_study_list, test_full_details, 4, True
@@ -98,11 +91,11 @@ class fetchTest(unittest.TestCase):
 
     def test_fetch_project(self):
         test_ebi_id = "PRJNA660883"
-        test_project_file = _test_support_dir + "/test_project_file.tsv"
+        test_project_file = _TEST_SUPPORT_DIR + "/test_project_file.tsv"
         test_metadata_file = (
-            _test_support_dir + "/test_study.EBI_metadata.tsv"
+            _TEST_SUPPORT_DIR + "/test_study.EBI_metadata.tsv"
         )
-        test_output_dir = _test_output_dir
+        test_output_dir = _TEST_OUTPUT_DIR
         test_prefix = "test_fetch_project"
         test_prep_max_num_str = "250"
         test_cpus_num_str = "4"
@@ -168,6 +161,7 @@ class fetchTest(unittest.TestCase):
         ] + fetch_args
 
         fetch_proj_arg_string = " ".join(fetch_proj_args)
+        print(fetch_proj_arg_string)
         test_fetch_proj = CliRunner().invoke(fetch, fetch_proj_arg_string)
         self.assertEqual(test_fetch_proj.exit_code, 0)
 
@@ -182,9 +176,9 @@ class fetchTest(unittest.TestCase):
 
         # TODO add tests for these
         test_metadata_base = (
-            _test_support_dir + "/SRP116878_sample_info.EBI_metadata.tsv"
+            _TEST_SUPPORT_DIR + "/SRP116878_sample_info.EBI_metadata.tsv"
         )
-        test_merge_metadata = _test_support_dir + "/test_merger_metadata.tsv"
+        test_merge_metadata = _TEST_SUPPORT_DIR + "/test_merger_metadata.tsv"
         test_merge_col = "library_name"
         fetch_augment_args = (
             ["project", "--metadata-file", test_metadata_base]
@@ -208,7 +202,7 @@ class fetchTest(unittest.TestCase):
         test_random_subsample_yes = "random-subsample"
         test_overwrite = "--overwrite"
         test_output_dir_int = 2
-        test_output_dir_no_slash = _test_output_dir
+        test_output_dir_no_slash = _TEST_OUTPUT_DIR
         test_prefix_int = 2
         test_prep_max = 250
         test_cpus_int = 4

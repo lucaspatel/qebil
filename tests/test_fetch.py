@@ -12,17 +12,22 @@ import glob
 from os import remove, makedirs, path
 import pandas as pd
 
+from qebil.tools.util import setup_output_dir
 
-this_dir, this_filename = path.split(__file__)
-_test_support_dir = path.join(this_dir, "support_files")
-_test_output_dir = "./test_output/"
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")
+
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 def test_stage_output():
-    if not path.isdir(_test_output_dir):
-        makedirs(_test_output_dir)
+    if not path.isdir(_TEST_OUTPUT_DIR):
+        makedirs(_TEST_OUTPUT_DIR)
     else:
-        cleanup_list = glob.glob(_test_output_dir + "/*")
+        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*")
         for c in cleanup_list:
             remove(c)
 
@@ -52,7 +57,7 @@ class FetchTest(unittest.TestCase):
         }
         test_expected_reads = "5740751"
         test_raw_reads = fetch_fastq_files(
-            test_run_prefix, test_read_dict, _test_output_dir
+            test_run_prefix, test_read_dict, _TEST_OUTPUT_DIR
         )
         self.assertEqual(str(test_raw_reads), test_expected_reads)
 
@@ -61,7 +66,7 @@ class FetchTest(unittest.TestCase):
     def test_fetch_fastqs(self):
         test_stage_output()  # run this before any test that generates output files
         test_study_df = pd.read_csv(
-            _test_support_dir + "/test_study.EBI_metadata.tsv",
+            _TEST_SUPPORT_DIR + "/test_study.EBI_metadata.tsv",
             sep="\t",
             header=0,
             index_col=0,
@@ -72,11 +77,11 @@ class FetchTest(unittest.TestCase):
             "SAMN16049500.SRR12672280.R2.ebi.fastq.gz",
         ]
         test_expected_reads = "5740751"
-        test_result_md = fetch_fastqs(test_study, _test_output_dir)
+        test_result_md = fetch_fastqs(test_study, _TEST_OUTPUT_DIR)
         print(test_result_md)
         test_result_files = [
             f.split("/")[-1]
-            for f in sorted(glob.glob(_test_output_dir + "/*.fastq.gz"))
+            for f in sorted(glob.glob(_TEST_OUTPUT_DIR + "/*.fastq.gz"))
         ]
         self.assertEqual(
             str(test_result_md["qebil_raw_reads"].sum()), test_expected_reads
@@ -1079,7 +1084,7 @@ class FetchTest(unittest.TestCase):
             "sample_accession",
             "library_name",
         ]
-        test_study_valid_tsv = _test_support_dir + "/test_study_basic.tsv"
+        test_study_valid_tsv = _TEST_SUPPORT_DIR + "/test_study_basic.tsv"
         test_expected_df = pd.read_csv(
             test_study_valid_tsv, header=0, sep="\t", dtype=str
         )

@@ -14,7 +14,11 @@ from qebil.core import Study
 from qebil.fetch import fetch_fastqs
 from qebil.log import setup_log
 from qebil.normalize import add_emp_info
-from qebil.output import write_config_files, write_metadata_files
+from qebil.output import (
+    write_config_file,
+    write_metadata_files,
+    write_qebil_info_files
+)
 from qebil.process import deplete_on_the_fly
 from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
 from qebil.tools.util import (
@@ -22,6 +26,7 @@ from qebil.tools.util import (
     parse_document,
     scrape_ebi_ids,
     setup_output_dir,
+    detect_qiita_study,
 )
 
 
@@ -429,8 +434,6 @@ def fetch_project(
                     "study_accession not in metadata file, skipping" + f
                 )
 
-    updated_proj_dict = {}
-
     # write out files to speed up recovered processing
     write_metadata_files(
         project_dict, output_dir, prefix, suffix, False, prep_max
@@ -440,32 +443,41 @@ def fetch_project(
         proj = project_dict[proj_id]
         proj.filter_samples(select_dict)
 
-        if qiita:
-            proj.populate_preps()
-            if emp_protocol:
-                proj.metadata = add_emp_info(proj.metadata)
+        qiita_id = detect_qiita_study(proj.metadata)
+        if qiita_id:
+            logger.error("Study already present in Qiita:" + qiita_id)
+        else:
+            if qiita:
+                write_config_file(proj.details, output_dir + prefix)
+                proj.populate_preps()
+                if emp_protocol:
+                    proj.metadata = add_emp_info(proj.metadata)
 
-        if human_removal:
-            proj.metadata = deplete_on_the_fly(
-                proj, cpus, output_dir, keep_files
+                write_qebil_info_files(
+                    proj, output_dir, prefix, max_prep=prep_max
+                )
+
+                supp_md_list = list(add_metadata_file)
+
+                if len(supp_md_list) > 0:
+                    proj.metadata = augment_metadata(
+                        proj.metadata,
+                        supp_md_list,
+                        merge_column,
+                        emp_protocol,
+                    )
+
+            if human_removal:
+                proj.metadata = deplete_on_the_fly(
+                    proj, cpus, output_dir, keep_files
+                )
+            elif download_fastq:
+                proj.metadata = fetch_fastqs(proj, output_dir, correct_index)
+
+            # write out updated metadata
+            # bit of a kludge until if/when this is refactored
+            # but goal is to write out each loop instead of at end to avoid
+            # issues if a job dies early
+            write_metadata_files(
+                {proj_id: proj}, output_dir, prefix, suffix, qiita, prep_max
             )
-        elif download_fastq:
-            proj.metadata = fetch_fastqs(proj, output_dir, correct_index)
-
-        supp_md_list = list(add_metadata_file)
-
-        if len(supp_md_list) > 0:
-            proj.metadata = augment_metadata(
-                proj.metadata, supp_md_list, merge_column, emp_protocol
-            )
-
-        updated_proj_dict[proj_id] = proj
-
-    # write out metadata as a single table
-    suffix = ".EBI_metadata"
-    write_metadata_files(
-        updated_proj_dict, output_dir, prefix, suffix, qiita, prep_max
-    )
-
-    if qiita:
-        write_config_files(updated_proj_dict, output_dir, prefix)

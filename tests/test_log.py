@@ -9,25 +9,30 @@ from qebil.log import (
 )
 import logging
 
-this_dir, this_filename = path.split(__file__)
-_test_support_dir = path.join(this_dir, "support_files")
-_test_output_dir = path.join(this_dir, "test_output/")
+from qebil.tools.util import setup_output_dir
+
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")
+
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class TestSetupLogging(unittest.TestCase):
     def test_setup_log(self):
         """Tests whether a log file with the excpected contents is created"""
 
-        output_dir = _test_output_dir
         prefix = "test"
         suffix = "example"
         quiet = False
-        test_log_file = output_dir + prefix + suffix + ".log"
+        test_log_file = _TEST_OUTPUT_DIR + prefix + suffix + ".log"
 
         if path.isfile(test_log_file):
             remove(test_log_file)
 
-        setup_log(output_dir, prefix, suffix, quiet)
+        setup_log(_TEST_OUTPUT_DIR, prefix, suffix, quiet)
         from qebil.log import logger
 
         test_log_line = "This is a test."
@@ -65,7 +70,7 @@ class TestSetupLogging(unittest.TestCase):
         level_list = ["DEBUG", "INFO", "WARNING"]
 
         for l in level_list:
-            test_path = _test_output_dir + l.lower() + ".log"
+            test_path = _TEST_OUTPUT_DIR + l.lower() + ".log"
 
             if path.isfile(test_path):
                 remove(test_path)

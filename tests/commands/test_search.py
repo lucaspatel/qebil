@@ -4,10 +4,15 @@ import unittest
 from click.testing import CliRunner
 from os import path, remove
 import glob
+from qebil.tools.util import setup_output_dir
 
-_this_dir, this_filename = path.split(__file__)
-_test_support_dir = path.join(_this_dir, "..", "support_files")
-_test_output_dir = path.join(_this_dir, "..", "test_output/")
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
+
+_TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
+
+_TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 import pandas as pd
 
@@ -16,7 +21,7 @@ class TestSearch(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         # clean up the directory at the start
-        cleanup_list = glob.glob(_test_output_dir + "/*.EBI_metadata.tsv")
+        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "*.EBI_metadata.tsv")
         for c in cleanup_list:
             remove(c)
 
@@ -80,7 +85,7 @@ class TestSearch(unittest.TestCase):
 
     def test_search_ebi(self):
         query = "PRJNA660883"
-        output_dir = _test_output_dir
+        output_dir = _TEST_OUTPUT_DIR
         prefix = "test"
         strategy = ["amplicon", "other", "wgs", "rna-seq"]
         platform = ["illumina"]
@@ -142,7 +147,7 @@ class TestSearch(unittest.TestCase):
 
     def test_search_ebi_no_summary(self):
         query = "PRJNA660883"
-        output_dir = _test_output_dir
+        output_dir = _TEST_OUTPUT_DIR
         prefix = "test"
         strategy = ["amplicon", "other", "wgs", "rna-seq"]
         platform = ["illumina"]

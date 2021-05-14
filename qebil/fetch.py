@@ -1,4 +1,4 @@
-from os import remove
+from os import path, remove
 import pandas as pd
 import requests
 from xmltodict import parse
@@ -184,11 +184,12 @@ def fetch_fastq_files(
         )
         for r in local_read_dict.values():
             if path.isfile(r):
-                logger.info('Removing ' + r)
+                logger.info("Removing " + r)
                 remove(r)
             else:
-                logger.warning("Could not remove" + r
-                               + "file does not exist.")
+                logger.warning(
+                    "Could not remove" + r + "file does not exist."
+                )
     else:
         if remove_index_file:
             logger.info("Removing index file")
@@ -259,8 +260,9 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
         except KeyError:
             logger.warning("No run_prefix in metadata for: " + index)
         if len(run_prefix) > 0:
+            logger.info("Unpacking: " + str(md.at[index, "fastq_ftp"]))
             ebi_dict = unpack_fastq_ftp(
-                md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
+                str(md.at[index, "fastq_ftp"]), str(md.at[index, "fastq_md5"])
             )
             if len(ebi_dict) > 0:
                 md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
