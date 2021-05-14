@@ -588,6 +588,12 @@ class Study:
 
         """
         md = self.metadata
+        
+        # if the data for some reason has a run_prefix already, replace it
+        if "run_prefix" in md.columns:
+            logger.warning("This may be a Qiita study."
+                           + " Check library names.")
+            md = md.rename({"run_prefix": "user_run_prefix"}, axis=1)
 
         lib_strats = md["library_strategy"].unique()
         lib_dfs_to_combine = []
@@ -598,6 +604,8 @@ class Study:
             unique_samples = lib_subset[identifier].nunique()
             if num_sample == unique_samples:
                 lib_subset["sample_name"] = lib_subset[identifier]
+                # prepend sample name for easier alignment
+                md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
             elif "library_name" in md.keys():
                 # users like to put their helpful info here
                 unique_lib = lib_subset["library_name"].nunique()
@@ -605,6 +613,8 @@ class Study:
                     lib_subset["sample_name"] = lib_subset[
                         "library_name"
                     ].apply(lambda x: scrub_special_chars(str(x), sub="."))
+                    # prepend sample name for easier alignment
+                    md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
                 else:
                     # fall back to sample + run id
                     lib_subset["sample_name"] = (
@@ -617,6 +627,8 @@ class Study:
                 lib_subset["sample_name"] = (
                     lib_subset[identifier] + "." + lib_subset[run_accession]
                 )
+                # in this case sample_name and run_prefix are the same
+                md["run_prefix"] = md["sample_name"]
 
             lib_dfs_to_combine.append(lib_subset)
 
@@ -631,15 +643,6 @@ class Study:
             )
         else:
             md = pd.concat(lib_dfs_to_combine)
-
-            # prepend sample name for easier alignment
-            # if the data for some reason has a run_prefix already, replace it
-            if "run_prefix" in md.columns:
-                logger.warning("This may be a Qiita study."
-                               + " Check library names.")
-                md = md.rename({"run_prefix": "ena_run_prefix"}, axis=1)
-
-            md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
             md = md.set_index("sample_name")
 
         self.metadata = md
