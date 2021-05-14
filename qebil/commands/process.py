@@ -1,3 +1,8 @@
+import click
+from . import cli, add_options
+from os import makedirs, path
+import glob
+
 from qebil.commands import _OUTPUT_OPTIONS, _STUDY_OPTIONS, _PROCESS_OPTIONS
 from qebil.process import run_fastp
 from qebil.tools.fastq import (
@@ -5,6 +10,7 @@ from qebil.tools.fastq import (
     check_fastq_tail,
     get_read_count,
 )
+from qebil.tools.util import setup_output_dir
 
 _PROCESS_OPTIONS = [
     click.option(

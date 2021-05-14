@@ -1,16 +1,16 @@
 import hashlib
-from urllib.request import urlretrieve
+from os import makedirs, path, remove
 import pandas as pd
-import requests
-import urllib
 import PyPDF2
 import re
-from os import path, remove
-from requests.exceptions import RequestException
+import requests
+# from requests.exceptions import RequestException
+import urllib
+from urllib.request import urlretrieve
 
 from qebil.log import logger
 
-this_dir, this_filename = path.split(__file__)
+THIS_DIR, THIS_FILENAME = path.split(__file__)
 
 
 def load_project_file(filepath):
@@ -30,8 +30,6 @@ def load_project_file(filepath):
     ---------
     add_list: list
         list of EBI project IDs found in the file
-
-
 
     """
     proj_df = pd.read_csv(filepath, sep="\t", header=0)
@@ -98,7 +96,7 @@ def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
             urlretrieve("ftp://" + ftp_path, filepath)
             checksum = check_download_integrity(filepath, remote_checksum)
             return checksum
-        except RequestException:
+        except urllib.error.URLError:  # RequestException:
             logger.warning(
                 "Issue with urlretrieve for "
                 + "download of file:"
@@ -166,6 +164,10 @@ def parse_document(filepath):
     full_text = ""
     tokens = []
 
+    if filepath[0:3] == "10.1":
+        # this is a doi, so just prepend and go with it
+        filepath = "https://doi.org/" + filepath
+
     if filepath[0:3] == "htt":
         request = requests.get(filepath)
         if request.status_code == 200:
@@ -176,14 +178,14 @@ def parse_document(filepath):
                     page_to_print = document.getPage(i)
                     full_text += page_to_print.extractText()
                 tokens = [
-                    t for t in re.split("\; |\, |\. | |\n|\t", full_text)
+                    t for t in re.split(r"\; |\, |\. | |\n|\t", full_text)
                 ]
             else:
                 full_text = request.text
                 tokens = [
                     t
                     for t in re.split(
-                        "\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text
+                        r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text
                     )
                 ]
     else:
@@ -192,13 +194,14 @@ def parse_document(filepath):
             for i in range(document.numPages):
                 page_to_print = document.getPage(i)
                 full_text += page_to_print.extractTexit()
-            tokens = [t for t in re.split("\; |\, |\. | |\n|\t", full_text)]
+            tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", full_text)]
         else:
             text_file = open(filepath, "r")
             full_text = text_file.read()
             text_file.close()
             tokens = [
-                t for t in re.split("\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
+                t
+                for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
             ]
 
     return tokens
@@ -255,7 +258,7 @@ def scrape_ebi_ids(tokens, proj_id_stems=["PRJEB", "PRJNA", "ERP", "SRP"]):
                                 .strip(".")
                                 .strip("-")
                             )
-                            found_ebi_ids.append(test_study)
+                            found_ebi_ids.append(found_study)
                             invalid = False
                     if invalid:
                         logger.warning(
@@ -269,3 +272,73 @@ def scrape_ebi_ids(tokens, proj_id_stems=["PRJEB", "PRJNA", "ERP", "SRP"]):
                         )
 
     return found_ebi_ids
+
+
+def get_ebi_ids(study_xml_dict):
+    """Simple method to retrieve the paired study and project accessions
+
+    If the the EBI accessions are not found, will return a tuple of
+    False, False
+
+    Parameters
+    -----------
+    study_xml_dict: dict
+        details retrieved from fetch_ebi_info
+
+    Returns
+    ----------
+    study_accession, proj_accession: (string, string) or (False, False)
+        stud and project accessions if found
+    """
+    # TODO: does not catch case where STUDY_SET and PROJECT_SET in keys
+    # TODO: consider refactor with xml object instead of dict
+
+    study_accession = False
+    proj_accession = False
+
+    if "STUDY_SET" in study_xml_dict:
+        id_dict = study_xml_dict["STUDY_SET"]["STUDY"]["IDENTIFIERS"]
+        study_accession = id_dict["PRIMARY_ID"]
+        if "SECONDARY_ID" in id_dict:
+            proj_accession = id_dict["SECONDARY_ID"]
+            # need to catch for the case when there are two secondary IDs...
+            # all project accessions should start with PRJ
+            if type(proj_accession) == list:
+                proj_accession = "".join(
+                    [p for p in proj_accession if "PRJ" in p]
+                )
+        else:
+            logger.warning("No project ID for study: " + study_accession)
+            proj_accession = study_accession
+    elif "PROJECT_SET" in study_xml_dict:
+        id_dict = study_xml_dict["PROJECT_SET"]["PROJECT"]["IDENTIFIERS"]
+        proj_accession = id_dict["PRIMARY_ID"]
+        if "SECONDARY_ID" in id_dict:
+            study_accession = id_dict["SECONDARY_ID"]
+        else:
+            logger.warning("No study ID for project: " + proj_accession)
+    else:
+        logger.warning("No study information found.")
+
+    return study_accession, proj_accession
+
+
+def setup_output_dir(output_dir):
+    """Helper function to ensure output path exists and is valid"""
+
+    # output_dir directory
+    if output_dir[-1] != "/":
+        output_dir += "/"
+
+    if not path.exists(output_dir):
+        makedirs(output_dir)
+
+    return output_dir
+
+
+def detect_qiita_study(metadata):
+    """Simple helper function to catch when a study is already in Qiita"""
+    if "qiita_study_id" in metadata.columns:
+        return metadata["qiita_study_id"].unique()
+    else:
+        return False

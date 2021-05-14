@@ -28,7 +28,8 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
     cpus: int
         number of processors available for running fastp and minimap2
     output_dir: string
-         path to write the files to, and where already processed files should be
+         path to write the files to, and where already processed files
+         should be
     keep_files: bool
         whether to retain raw (.ebi.) and intermediate (.fastp.) fastq files
 
@@ -43,48 +44,79 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
     # We'll need to make sure the data type makes sense to host deplete
     # and if we're doing this, assume we'll want the metadata in Qiita
     # format
-    if "qiita_prep_file" not in study.metadata.columns:
+    if "qebil_prep_file" not in study.metadata.columns:
         study.populate_preps()
 
     md = study.metadata
 
     for index in md.index:
         run_prefix = md.at[index, "run_prefix"]
-        strategy = md.at[index, "library_strategy"]
         model = md.at[index, "instrument_model"]
         try:
-            raw_reads = str(md.at[index, "qiita_raw_reads"])
-        except:
+            raw_reads = str(md.at[index, "qebil_raw_reads"])
+            logger.info(
+                "Raw read count for " + run_prefix + ": " + str(raw_reads)
+            )
+        except KeyError:
+            logger.info(
+                "No raw read count found for "
+                + run_prefix
+                + "; fastq file(s) will be downloaded."
+            )
             raw_reads = "not determined"
         try:
-            filtered_reads = str(md.at[index, "qiita_quality_filtered_reads"])
-        except:
+            filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
+            logger.info(
+                "Filtered read count for "
+                + run_prefix
+                + ": "
+                + str(filtered_reads)
+            )
+        except KeyError:
+            logger.info(
+                "No filtered read count found for "
+                + run_prefix
+                + "; fastq file(s) will be quality filtered."
+            )
             filtered_reads = "not determined"
 
         try:
-            mb_reads = str(md.at[index, "qiita_non_host_reads"])
-        except:
+            mb_reads = str(md.at[index, "qebil_non_host_reads"])
+            logger.info(
+                "Non-host read count for " + run_prefix + ": " + str(mb_reads)
+            )
+        except KeyError:
+            logger.info(
+                "No non-host read count found for "
+                + run_prefix
+                + "; fastq file(s) will be host depleted."
+            )
             mb_reads = "not determined"
 
-        prep_file_type = md.at[index, "qiita_prep_file"].split("_")[0]
+        prep_file_type = md.at[index, "qebil_prep_file"].split("_")[0]
         ebi_dict = unpack_fastq_ftp(
             md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
         )
 
         if not raw_reads.isnumeric():
             # this value should only be set if downloaded
-            md.at[index, "qiita_raw_reads"] = fetch_fastq_files(
+            md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
                 run_prefix, ebi_dict, output_dir
             )
-            raw_reads = md.at[index, "qiita_raw_reads"]
+            raw_reads = md.at[index, "qebil_raw_reads"]
+            print("raw reads after fff:" + str(raw_reads))
         if not filtered_reads.isnumeric():
             # this value should only be set if filtered
-            md.at[index, "qiita_quality_filtered_reads"] = run_fastp(
+            md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
                 run_prefix, raw_reads, model, output_dir, cpus, keep_files
             )
-            filtered_reads = str(md.at[index, "qiita_quality_filtered_reads"])
-            md.at[index, "qiita_frac_reads_passing_filter"] = (
-                filtered_reads / raw_reads
+            filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
+            md.at[index, "qebil_frac_reads_passing_filter"] = int(
+                filtered_reads
+            ) / int(raw_reads)
+            print(
+                "% suriving filter: "
+                + str(md.at[index, "qebil_frac_reads_passing_filter"])
             )
         # check to make sure the data can be host_depleted
         if prep_file_type not in ["Metagenomic", "Metatranscriptomic"]:
@@ -98,17 +130,20 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
         else:
             # this value should only be set if host filtering finished
             if not mb_reads.isnumeric():
-                md.at[index, "qiita_non_host_reads"] = run_host_depletion(
+                md.at[index, "qebil_non_host_reads"] = run_host_depletion(
                     run_prefix,
                     filtered_reads,
                     output_dir,
                     cpus,
                     keep_files,
                 )
-                md_reads = md.at[index, "qiita_non_host_reads"]
-                md.at[index, "qiita_frac_non_host_reads"] = (
-                    mb_reads / filtered_reads
+                filtered_reads = str(
+                    md.at[index, "qebil_quality_filtered_reads"]
                 )
+                mb_reads = str(md.at[index, "qebil_non_host_reads"])
+                md.at[index, "qebil_frac_non_host_reads"] = int(
+                    mb_reads
+                ) / int(filtered_reads)
 
     # update study metadata
     return md
@@ -427,14 +462,15 @@ def run_host_depletion(
             stf_ps = Popen(
                 stf_args, stdin=minimap2_ps.stdout, stdout=PIPE, stderr=PIPE
             )
-            stf_ps.wait()
+            minimap2_ps.stdout.close()
+            stf_ps.communicate()
             remove(run_prefix + "_minimap2.start")
 
         # now make sure the output files are valid with fastqs
         confirm = True
         for c in confirm_list:
             if confirm:
-                confirm = check_valid_fastq(c, cpus, output_dir)
+                confirm = check_valid_fastq(c)
 
         if confirm:
             if not keep:

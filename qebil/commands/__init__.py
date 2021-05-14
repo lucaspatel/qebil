@@ -25,16 +25,7 @@ _SUBSET_OPTIONS = [
     click.option(
         "--source",
         multiple=True,
-        default=[
-            "genomic",
-            "genomic single cell",
-            "transcriptomic",
-            "transcriptomic single cell",
-            "metagenomic",
-            "metatranscriptomic",
-            "viral rna",
-            "other",
-        ],
+        default=[],
         type=click.Choice(
             [
                 "GENOMIC",
@@ -49,7 +40,10 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Library sources for restricting search."),
+        help=(
+            "Library sources for restricting search, not case"
+            + " sensitive. Default is [] (no restriction)"
+        ),
     ),
     click.option(
         "--strategy",
@@ -98,12 +92,16 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Library strategy to restrict search."),
+        help=(
+            "Library strategy to restrict search; not case"
+            + ' sensitive. Default is: ["amplicon", "other",'
+            + ' "wgs", "rna-seq", "wcs", "poolclone", "clone"]'
+        ),
     ),
     click.option(
         "--platform",
         multiple=True,
-        default=["illumina"],
+        default=["illumina", "pacbio_smrt", "oxford_nanopore"],
         type=click.Choice(
             [
                 "LS454",
@@ -114,7 +112,11 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Instrument platform to restrict search."),
+        help=(
+            "Instrument platform to restrict search, not case"
+            + 'sensitive. Default is: ["illumina","pacbio_smrt",'
+            + ' "oxford_nanopore"]'
+        ),
     ),
     click.option(
         "--selection",
@@ -170,13 +172,23 @@ _SUBSET_OPTIONS = [
             ],
             case_sensitive=False,
         ),
-        help=("Library selection method to restrict search."),
+        help=(
+            "Library selection method to restrict search."
+            + ' Default is: ["random", "pcr", "random pcr",'
+            + ' "rt-pcr", "cdna", "cdna_randompriming",'
+            + ' "inverse rrna", "inverse rrna selection",'
+            + ' "unspecified", "size fractionation",'
+            + ' "repeat fractionation", "race", "other"]'
+        ),
     ),
     click.option(
         "--scientific-name",
         multiple=True,
         default=[],
-        help=("Scientific names to restrict search."),
+        help=(
+            "Scientific names to restrict search."
+            + " Default is [] (no restriction)"
+        ),
     ),
     click.option(
         "--no-filter",
@@ -184,6 +196,7 @@ _SUBSET_OPTIONS = [
         help=(
             "Ignore all defaults and do not filter samples with"
             + " any default selection criteria."
+            + " Default is no flag (False)."
         ),
     ),
 ]
@@ -192,14 +205,18 @@ _SUBSAMPLE_OPTIONS = [
     click.option(
         "--max-samples",
         default="",
-        help=("Max number of samples to grab from the study."),
+        help=(
+            "Max number of samples to grab from the study." + " Default is '"
+            " (all samples)"
+        ),
     ),
     click.option(
         "--random-subsample",
         is_flag=True,
         help=(
             "When sampling, randomly select subset for processing."
-            + "N.B. must supply a number with --max_samples)."
+            + "N.B. must supply a number with --max_samples."
+            + " Default is no flag (False)."
         ),
     ),
 ]
@@ -221,14 +238,18 @@ _AUGMENT_OPTIONS = [
         ),
         help=(
             "Supply additional metadata file for merging. "
-            + " Uses sample_name unless otherwise specified with --merge-column"
+            + " Uses sample_name unless otherwise specified with"
+            + " --merge-column. Default is [] (none)."
         ),
     ),
     click.option(
         "--merge-column",
         default="auto",
         help=(
-            "Column for merging supplemental metadata with downloaded metadata."
+            "Column for merging supplemental metadata with"
+            + " downloaded metadata. Default is 'auto' which"
+            + " attempts to automatically determine the column"
+            + " for merging."
         ),
     ),
     click.option(
@@ -236,7 +257,7 @@ _AUGMENT_OPTIONS = [
         is_flag=True,
         help=(
             "Update prep information with EMP protocol standards "
-            + " for 16S rRNA sequencing."
+            + " for 16S rRNA sequencing. Default is no flag (False)."
         ),
     ),
 ]
@@ -247,7 +268,7 @@ _OUTPUT_OPTIONS = [
         default="./",
         help=(
             "Directory for output_dir files. "
-            + " Default is working directory."
+            + " Default is working directory, './'"
         ),
     ),
     click.option(
@@ -274,7 +295,10 @@ _PROCESS_OPTIONS = [
     click.option(
         "--keep-files",
         is_flag=True,
-        help=("Whether or not to retain raw and intermediate fastq files."),
+        help=(
+            "Whether or not to retain raw and intermediate fastq files."
+            + " Default is no flag (False)."
+        ),
     ),
 ]
 
@@ -307,7 +331,7 @@ _METADATA_OPTIONS = [
     ),
 ]
 
-
+"""
 # from redbiom repo on github
 def _terribly_handle_brokenpipeerror():
     # based off http://stackoverflow.com/a/34299346
@@ -315,13 +339,15 @@ def _terribly_handle_brokenpipeerror():
     import sys
 
     sys.stdout = os.fdopen(1, "w")
+"""
 
 
 @click.group()
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx):
-    ctx.call_on_close(_terribly_handle_brokenpipeerror)
+    pass
+    # ctx.call_on_close(_terribly_handle_brokenpipeerror)
 
 
 # modules to load for calling via cli

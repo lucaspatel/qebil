@@ -5,13 +5,27 @@ import yaml
 from qebil.log import logger
 from qebil.normalize import add_emp_info
 
+
 this_dir, this_filename = path.split(__file__)
-_qiita_known_sample_types = path.join(
+
+
+_qebil_known_sample_types = path.join(
     this_dir, "..", "support_files", "known_sample_types.yaml"
 )
-_qiita_restricted_terms = path.join(
+
+
+_QIITA_RESTRICTED_TERMS = path.join(
     this_dir, "..", "support_files", "reserved_words.yaml"
 )
+
+
+NULL_DICT = {
+    "n/a": "not applicable",
+    "na": "not applicable",
+    "": "not provided",
+    "null": "not provided",
+    "nd": "no data",
+}
 
 
 def load_metadata(filename):
@@ -145,7 +159,7 @@ def format_prep_type(row, sample_name):
 
     Returns
     -------
-    library_strat_to_qiita_dict[ebi_strat] OR
+    library_strat_to_qebil_dict[ebi_strat] OR
     amplicon_dict[tg] OR 'AMBIGUOUS': string
         Qiita-normalized prep type term
     """
@@ -169,13 +183,13 @@ def format_prep_type(row, sample_name):
         "18S DNA": "18S",
         "18S ": "18S",
     }
-    library_strat_to_qiita_dict = {
+    library_strat_to_qebil_dict = {
         "POOLCLONE": "AMBIGUOUS",
-        "CLONE": "Genome Isolate",
+        "CLONE": "Genome_Isolate",
         "CLONEEND": "AMBIGUOUS",
         "WGS": "Metagenomic",
         "WGA": "Metagenomic",
-        "WCS": "Genome Isolate",
+        "WCS": "Genome_Isolate",
         "WXS": "Metagenomic",
         "ChIP-Seq": "Metagenomic",
         "RNA-Seq": "Metatranscriptomic",
@@ -200,14 +214,15 @@ def format_prep_type(row, sample_name):
         "RAD-Seq": "AMBIGUOUS",
     }
     ebi_strat = row["library_strategy"]
-    logger.info("EBI strategy is:" + str(ebi_strat))
+    logger.info(
+        "EBI strategy is:" + str(ebi_strat) + " for " + str(sample_name)
+    )
 
     prep_type = "AMBIGUOUS"
-    print(ebi_strat)
 
     if ebi_strat not in amplicon_list:
-        if ebi_strat in library_strat_to_qiita_dict.keys():
-            prep_type = library_strat_to_qiita_dict[ebi_strat]
+        if ebi_strat in library_strat_to_qebil_dict.keys():
+            prep_type = library_strat_to_qebil_dict[ebi_strat]
         else:
             logger.info(
                 ebi_strat
@@ -253,7 +268,8 @@ def set_criteria(
     Returns
     -------
     selection_dict : dict
-        dict of list of criteria with keys that match normalized metadata columns
+        dict of list of criteria with keys that match normalized
+        metadata columns
     """
     selection_dict = {}
 
@@ -279,16 +295,6 @@ def set_criteria(
         selection_dict["scientific_name"] = [str(n).lower() for n in names]
 
     return selection_dict
-    """except:
-        error = ("Malconfigured input: "
-        + " strategies: " + str(strategies)
-        + " platforms: " + str(platforms)
-        + " selections: " + str(selections)
-        + " sources: " + str(sources)
-        + " names" + str(names))
-        
-        return Exception(error)
-    """
 
 
 def check_sample_type(input_df, validation_dict={}):
@@ -335,7 +341,7 @@ def check_sample_type(input_df, validation_dict={}):
             "Did not detect sample_type column. Setting to"
             + " 'unspecified sample type'"
         )
-        input_df["qiita_sample_type"] = "unspecified sample type"
+        input_df["qebil_sample_type"] = "unspecified sample type"
     else:
         max_matches = 0
         match_col = []
@@ -343,8 +349,10 @@ def check_sample_type(input_df, validation_dict={}):
             if st_col_dict[s] > max_matches:
                 max_matches = st_col_dict[s]
                 match_col = s
-        logger.info("Automatically selected column: " + match_col + "to copy.")
-        input_df["qiita_sample_type"] = input_df[match_col].apply(
+        logger.info(
+            "Automatically selected column: " + match_col + "to copy."
+        )
+        input_df["qebil_sample_type"] = input_df[match_col].apply(
             lambda x: x.lower()
         )
 
@@ -374,9 +382,7 @@ def detect_merger_column(base_md, supp_md):
     for col in supp_md.columns:
         num_supp_unique = supp_md[col].nunique()
         if num_supp_unique == num_supp_samples:
-            print(col + " equal")
             if col in base_md.columns:
-                print(col + " in base")
                 base_unique = base_md[col].nunique()
                 if base_unique == num_base_samples:
                     auto_col_list.append(col)
@@ -455,7 +461,7 @@ def merge_metadata(base_md, supp_md, supp_col="sample_name"):
     return merged_df
 
 
-def qiita_format(md, null_term="not provided"):
+def qebil_format(md, null_term="not provided"):
     """Reformats the metadata to be ready for loading into Qiita
 
     First each column is cleaned up using the clean_column_name
@@ -572,12 +578,12 @@ def scrub_special_chars(input_string, custom_dict={}, sub="_"):
     Parameters
     ----------
     input_string : string
-        The string to be scrubbed
+        the string to be scrubbed
 
     Returns
     -------
-    string
-        returns the scrubbed string
+    clean_string: string
+        the scrubbed string
     """
     # priority replacements for common biological terms
     priority_dict = {
@@ -620,29 +626,25 @@ def scrub_special_chars(input_string, custom_dict={}, sub="_"):
         "_": sub,
         "__": sub,
     }
+    # trim whitespace around string
+    clean_string = str(input_string).strip()
 
     try:
-        # trim whitespace around string
-        input_string = input_string.strip()
-
+        for k in custom_dict.keys():
+            clean_string = clean_string.replace(k, custom_dict[k])
         for k in priority_dict.keys():
             if k != sub:
-                input_string = input_string.replace(k, priority_dict[k])
-
+                clean_string = clean_string.replace(k, priority_dict[k])
         for k in replace_dict.keys():
             if k != sub:
-                input_string = input_string.replace(k, replace_dict[k])
-
-        for k in custom_dict.keys():
-            input_string = input_string.replace(k, custom_dict[k])
-
+                clean_string = clean_string.replace(k, replace_dict[k])
         # remove leading and trailing substitute chars
-        input_string = input_string.strip(sub)
+        clean_string = clean_string.strip(sub)
 
         # collapse multiple sub strings into one
-        input_string = sub.join(input_string.split(sub))
+        clean_string = sub.join(clean_string.split(sub))
 
-    except AttributeError as a:
+    except AttributeError:
         logger.error(
             "Issue with input_string:"
             + str(input_string)
@@ -651,10 +653,19 @@ def scrub_special_chars(input_string, custom_dict={}, sub="_"):
             + "or keys in custom_dict object provided."
         )
 
-    return input_string
+    if clean_string != str(input_string):
+        logger.warning(
+            "String "
+            + input_string
+            + " contained invalid "
+            + " characters. Scrubbed string to:"
+            + clean_string
+        )
+
+    return clean_string
 
 
-def check_qiita_restricted_column(col):
+def check_qebil_restricted_column(col):
     """
     Reformats a list of column ids to ensure that
     no restricted terms are used
@@ -671,13 +682,18 @@ def check_qiita_restricted_column(col):
 
     """
 
-    # _qiita_restricted_terms file is copied from qiimp github
-    with open(_qiita_restricted_terms) as file:
-        restricted_qiita_terms = yaml.load(file, Loader=yaml.BaseLoader)
+    # _qebil_restricted_terms file is copied from qiimp github
+    with open(_QIITA_RESTRICTED_TERMS) as file:
+        restricted_qebil_terms = yaml.load(file, Loader=yaml.BaseLoader)
 
-    restricted_term_lower = [term.lower() for term in restricted_qiita_terms]
+    restricted_term_lower = [term.lower() for term in restricted_qebil_terms]
 
     if col in restricted_term_lower:
+        logger.warning(
+            col
+            + " in list of SQL/Qiita restricted terms,"
+            + " prepending with 'user_' but keeping values."
+        )
         col = "user_" + col
 
     return col
@@ -696,18 +712,31 @@ def enforce_start_characters(col):
 
     Returns
     -------
-    rename_dict : dict
-        dict to be used for renaming problem columns
+    clean_col : string
+        cleaned column name
 
     """
-
+    clean_col = col
     test_char = col[0]
     if test_char == "_":
-        col = "qiita" + col
+        clean_col = "qebil" + clean_col
     elif test_char.isnumeric():
-        col = "qiita_" + col
+        clean_col = "qebil_" + clean_col
 
-    return col
+    if clean_col != col:
+        # TODO: pythonify strings?
+        logger.warning(
+            "Column "
+            + str(col)
+            + " contained invalid"
+            + " start character: "
+            + str(test_char)
+            + " Scrubbed"
+            + " column name to new column: "
+            + str(clean_col)
+        )
+
+    return clean_col
 
 
 def clean_nulls(potential_null, supp_dict={}):
@@ -728,31 +757,31 @@ def clean_nulls(potential_null, supp_dict={}):
     """
     resolved_null = potential_null
 
-    null_dict = {
-        "n/a": "not applicable",
-        "na": "not applicable",
-        "": "not provided",
-        "null": "not provided",
-        "nd": "no data",
-    }
     for s in supp_dict.keys():
-        null_dict[s] = supp_dict[s]
+        NULL_DICT[s] = supp_dict[s]
 
-    if type(potential_null) == int or type(potential_null) == float:
+    if type(potential_null) in {int, float}:
         return resolved_null
     else:
         test_null = str(resolved_null).lower()
 
-        if test_null in null_dict.keys():
-            resolved_null = null_dict[test_null]
+        if test_null in NULL_DICT:
+            resolved_null = NULL_DICT[test_null]
+
+        if resolved_null != potential_null:
+            logger.warning(
+                "Cleaned null value "
+                + potential_null
+                + " to"
+                + " standardardized null value: "
+                + resolved_null
+            )
 
         return resolved_null
 
 
 def clean_column_name(col):
     """Helper function to call other column cleanup methods"""
-    col = scrub_special_chars(col).lower()
-    col = enforce_start_characters(col)
-    col = check_qiita_restricted_column(col)
-
-    return col
+    return check_qebil_restricted_column(
+        enforce_start_characters(scrub_special_chars(col).lower())
+    )

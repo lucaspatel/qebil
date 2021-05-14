@@ -1,11 +1,7 @@
 import click
-from . import cli, add_options
-from os import makedirs, path
+from os import path
 
-from qebil.log import setup_log
-from qebil.output import write_config_files, write_metadata_files
-from qebil.core import Study
-from qebil.tools.util import load_project_file, parse_document, scrape_ebi_ids
+from . import cli, add_options
 from qebil.commands import (
     _OUTPUT_OPTIONS,
     _METADATA_OPTIONS,
@@ -14,9 +10,24 @@ from qebil.commands import (
     _SUBSAMPLE_OPTIONS,
     _AUGMENT_OPTIONS,
 )
-from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
+from qebil.core import Study
 from qebil.fetch import fetch_fastqs
+from qebil.log import setup_log
+from qebil.normalize import add_emp_info
+from qebil.output import (
+    write_config_file,
+    write_metadata_files,
+    write_qebil_info_files
+)
 from qebil.process import deplete_on_the_fly
+from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
+from qebil.tools.util import (
+    load_project_file,
+    parse_document,
+    scrape_ebi_ids,
+    setup_output_dir,
+    detect_qiita_study,
+)
 
 
 def fetch_remote_studies(
@@ -45,22 +56,22 @@ def fetch_remote_studies(
         dict of Study objects with study IDs as keys
 
     """
+
     study_dict = {}
     if max_samples != "":
         try:
             max_samples = int(max_samples)
-        except:
-            raise Exception(
+        except ValueError:
+            raise ValueError(
                 "Max samples: " + str(max_samples) + " is not type int."
             )
     for p in study_list:
-        ebi_study = Study.from_remote(
+        study_dict[p] = Study.from_remote(
             p,
             full_details=full_details,
             max_samples=max_samples,
             random_subsample=random_subsample,
         )
-        study_dict[p] = ebi_study
 
     return study_dict
 
@@ -179,8 +190,9 @@ _batch_options = [
         multiple=True,
         default=[],
         help=(
-            "Publications (pdf, url, or plain text) containing list of "
-            + " NCBI/SRA or EBI/ENA projects or study accession(s) to retrieve."
+            "Publications (pdf, url, or plain text) containing list of"
+            + " NCBI/SRA or EBI/ENA projects or study accession(s)"
+            + " to retrieve."
         ),
     ),
 ]
@@ -343,12 +355,8 @@ def fetch_project(
 
     """
 
-    # output_dir directory
-    if output_dir[-1] != "/":
-        output_dir += "/"
-
-    if not path.exists(output_dir):
-        makedirs(output_dir)
+    # setup output directory
+    output_dir = setup_output_dir(output_dir)
 
     # prepare output and logs
     suffix = ".EBI_metadata"
@@ -403,9 +411,9 @@ def fetch_project(
         if len(msg) > 0:
             logger.info(msg)
 
-        for l in local_dict.keys():
-            metadata_list.append(local_dict[l])
-            project_list.remove(l)
+        for local_proj in local_dict.keys():
+            metadata_list.append(local_dict[local_proj])
+            project_list.remove(local_proj)
 
     # get study information
     project_dict = fetch_remote_studies(
@@ -426,8 +434,6 @@ def fetch_project(
                     "study_accession not in metadata file, skipping" + f
                 )
 
-    updated_proj_dict = {}
-
     # write out files to speed up recovered processing
     write_metadata_files(
         project_dict, output_dir, prefix, suffix, False, prep_max
@@ -435,37 +441,43 @@ def fetch_project(
 
     for proj_id in project_dict.keys():
         proj = project_dict[proj_id]
-        summ_fields = list(select_dict.keys())
-        pre_summary = proj.summarize(summ_fields)
         proj.filter_samples(select_dict)
-        post_summary = proj.summarize(summ_fields)
 
-        if qiita:
-            proj.populate_preps()
-            if emp_protocol:
-                proj.metadata = add_emp_info(proj.metadata)
+        qiita_id = detect_qiita_study(proj.metadata)
+        if qiita_id:
+            logger.error("Study already present in Qiita:" + qiita_id)
+        else:
+            if qiita:
+                write_config_file(proj.details, output_dir + prefix)
+                proj.populate_preps()
+                if emp_protocol:
+                    proj.metadata = add_emp_info(proj.metadata)
 
-        if human_removal:
-            proj.metadata = deplete_on_the_fly(
-                proj, cpus, output_dir, keep_files
+                write_qebil_info_files(
+                    proj, output_dir, prefix, max_prep=prep_max
+                )
+
+                supp_md_list = list(add_metadata_file)
+
+                if len(supp_md_list) > 0:
+                    proj.metadata = augment_metadata(
+                        proj.metadata,
+                        supp_md_list,
+                        merge_column,
+                        emp_protocol,
+                    )
+
+            if human_removal:
+                proj.metadata = deplete_on_the_fly(
+                    proj, cpus, output_dir, keep_files
+                )
+            elif download_fastq:
+                proj.metadata = fetch_fastqs(proj, output_dir, correct_index)
+
+            # write out updated metadata
+            # bit of a kludge until if/when this is refactored
+            # but goal is to write out each loop instead of at end to avoid
+            # issues if a job dies early
+            write_metadata_files(
+                {proj_id: proj}, output_dir, prefix, suffix, qiita, prep_max
             )
-        elif download_fastq:
-            proj.metadata = fetch_fastqs(proj, output_dir, correct_index)
-
-        supp_md_list = list(add_metadata_file)
-
-        if len(supp_md_list) > 0:
-            proj.metadata = augment_metadata(
-                proj.metadata, supp_md_list, merge_column, emp_protocol
-            )
-
-        updated_proj_dict[proj_id] = proj
-
-    # write out metadata as a single table
-    suffix = ".EBI_metadata"
-    write_metadata_files(
-        updated_proj_dict, output_dir, prefix, suffix, qiita, prep_max
-    )
-
-    if qiita:
-        write_config_files(updated_proj_dict, output_dir, prefix)
