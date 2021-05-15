@@ -605,7 +605,7 @@ class Study:
             if num_sample == unique_samples:
                 lib_subset["sample_name"] = lib_subset[identifier]
                 # prepend sample name for easier alignment
-                md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
+                lib_subset["run_prefix"] = lib_subset["sample_name"] + "." + lib_subset[run_accession]
             elif "library_name" in md.keys():
                 # users like to put their helpful info here
                 unique_lib = lib_subset["library_name"].nunique()
@@ -614,7 +614,7 @@ class Study:
                         "library_name"
                     ].apply(lambda x: scrub_special_chars(str(x), sub="."))
                     # prepend sample name for easier alignment
-                    md["run_prefix"] = md["sample_name"] + "." + md[run_accession]
+                    lib_subset["run_prefix"] = lib_subset["sample_name"] + "." + lib_subset[run_accession]
                 else:
                     # fall back to sample + run id
                     lib_subset["sample_name"] = (
@@ -628,7 +628,7 @@ class Study:
                     lib_subset[identifier] + "." + lib_subset[run_accession]
                 )
                 # in this case sample_name and run_prefix are the same
-                md["run_prefix"] = md["sample_name"]
+                lib_subset["run_prefix"] = lib_subset["sample_name"]
 
             lib_dfs_to_combine.append(lib_subset)
 
