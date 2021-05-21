@@ -125,7 +125,7 @@ def get_read_count(forward_read, reverse_read=""):
     if fqtools_ps.returncode == 0:
         read_1_count = res
     else:
-        return "fqtool error"
+        return "fqtools error"
 
     if reverse_read != "":
         fqtools_args = ["fqtools", "count", reverse_read]
@@ -137,12 +137,12 @@ def get_read_count(forward_read, reverse_read=""):
             read_2_count = res
 
             if read_2_count != read_1_count:
-                return "fqtool error. R1 reads != R2 reads"
+                return "fqtools error. R1 reads != R2 reads"
             else:
                 logger.info("fqtools finished.")
                 return read_1_count
         else:
-            return "fqtool error"
+            return "fqtools error"
     else:
         logger.info("fqtools finished.")
         return read_1_count

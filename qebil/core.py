@@ -4,6 +4,7 @@ from qebil.tools.metadata import (
     qebil_format,
     clean_column_name,
     scrub_special_chars,
+    subset_metadata,
 )
 from qebil.log import logger
 from qebil.fetch import fetch_ebi_info, fetch_ebi_metadata
@@ -50,7 +51,7 @@ _READ_COLUMNS = [
 
 
 class Study:
-    def __init__(self, md=pd.DataFrame()):
+    def __init__(self, md=pd.DataFrame(), proj_id="not provided"):
         """Basic constructor
 
         Creates a basic Study object with an empty DataFrame
@@ -73,28 +74,8 @@ class Study:
 
         """
         self.metadata = md
+        self.ebi_id = proj_id
         self.prep_columns = []
-        self.ebi_id = "not provided"
-        # A bit conflicted about whether this should be here,
-        # seems like a kludge?
-        if (
-            "study_accession" in self.metadata.columns
-        ):  # assume this is from EBI
-            unique_study = self.metadata["study_accession"].unique()
-            if len(unique_study) == 1:
-                self.ebi_id = unique_study[0]
-                self.populate_details()
-            elif len(unique_study) == 0:
-                logger.warning("No study accession in metadata")
-            else:
-                raise ValueError(
-                    "Metadata file should contain only one "
-                    + " unique study_accession value."
-                    + " Found: "
-                    + str(unique_study)
-                )
-        else:
-            logger.warning("No study accession in metadata")
 
     @property
     def metadata(self):
@@ -180,28 +161,6 @@ class Study:
         else:
             self._prep_columns = value
 
-    """ Not used so consider removing
-    @classmethod
-    def from_dict(cls, study_dict, cols=[]):
-        # Allows users to provide dict to create study
-        if isinstance(study_dict, dict):
-            if len(cols) > 0:
-                return cls(
-                    pd.DataFrame.from_dict(
-                        study_dict, orient="index", columns=cols
-                    )
-                )
-            else:
-                return cls(
-                    pd.DataFrame.from_dict(study_dict, orient ='index',
-                    columns = list(study_dict.keys()))
-                )
-        else:
-            raise ValueError(
-                "Expected dict, received " + str(type(study_dict))
-            )
-    """
-
     @classmethod
     def from_remote(
         cls,
@@ -233,23 +192,18 @@ class Study:
 
         """
         if not isinstance(ebi_id, str):
-            raise ValueError(
-                "Did not receive string, instead: " + str(ebi_id)
-            )
+            raise ValueError("Did not receive string, instead: " + str(ebi_id))
         else:
             md = fetch_ebi_metadata(ebi_id, fields)
-            tmp_study = cls(md)
-            if len(tmp_study.metadata) > 0:
+            tmp_study = cls(md, ebi_id)
+            if len(md) > 0:
                 # subset the study if the user requests before the
                 # time-consuming per sample/run metadata retrieval
                 if isinstance(max_samples, int):
-                    tmp_study.subset_metadata(max_samples, random_subsample)
-
-                tmp_study.ebi_id = ebi_id
+                    tmp_study.metadata = subset_metadata(md, max_samples, random_subsample)
+                
                 tmp_study.populate_sample_names()
                 tmp_study.populate_details(full_details)
-                logger.info("Set proj_id to : " + str(tmp_study.study_id))
-                logger.info("Set proj_id to : " + str(tmp_study.proj_id))
             else:
                 logger.warning("No study metadata retrieved for " + ebi_id)
 
@@ -337,6 +291,7 @@ class Study:
             if full_details:
                 self.populate_sample_info()
                 self.populate_expt_info()
+                self.metadata["ebi_metadata_retrieved"] = "TRUE"
         elif full_details:
             logger.warning(
                 "Skipping sample and run info retrieval."
@@ -469,39 +424,6 @@ class Study:
                         + sample_accession
                     )
 
-    def subset_metadata(self, max_samples, rand_sample=False):
-        """Subsamples a dataframe for the specified number of samples
-
-        Simple helper function to return a subset of the metadata
-        a random subset based on the number requested
-
-        Parameters
-        ----------
-        max_samples: int
-            The number of samples to take
-        rand_sample: boolean
-            Whether to perform a random subsample
-
-        Returns
-        -------
-        sample_df
-            subsampled dataframe
-
-        """
-        md = self.metadata
-        if isinstance(max_samples, int):
-            if isinstance(rand_sample, bool):
-                if rand_sample:
-                    self.metadata = md.sample(max_samples)
-                else:
-                    self.metadata = md.head(max_samples)
-            else:
-                raise ValueError(
-                    "Expected boolean, received: " + str(rand_sample)
-                )
-        else:
-            raise ValueError("Expected int, received: " + str(rand_sample))
-
     def filter_samples(self, filter_dict={}):
         """Allows users to reduce the metadata to match criteria
 
@@ -581,19 +503,16 @@ class Study:
         run_accession: string
             column name that defines the run accession used by EBI/ENA
 
-        Returns
-        -------
-        None
-
-
         """
         md = self.metadata
-        
+
         # if the data for some reason has a run_prefix already, replace it
-        if "run_prefix" in md.columns:
-            logger.warning("This may be a Qiita study."
-                           + " Check library names.")
-            md = md.rename({"run_prefix": "user_run_prefix"}, axis=1)
+        # TODO: determine if safe to drop now since Qiita check elsewhere
+        # if "run_prefix" in md.columns:
+        #    logger.warning(
+        #        "This may be a Qiita study." + " Check library names."
+        #    )
+        #    md = md.rename({"run_prefix": "user_run_prefix"}, axis=1)
 
         lib_strats = md["library_strategy"].unique()
         lib_dfs_to_combine = []
@@ -605,7 +524,9 @@ class Study:
             if num_sample == unique_samples:
                 lib_subset["sample_name"] = lib_subset[identifier]
                 # prepend sample name for easier alignment
-                lib_subset["run_prefix"] = lib_subset["sample_name"] + "." + lib_subset[run_accession]
+                lib_subset["run_prefix"] = (
+                    lib_subset["sample_name"] + "." + lib_subset[run_accession]
+                )
             elif "library_name" in md.keys():
                 # users like to put their helpful info here
                 unique_lib = lib_subset["library_name"].nunique()
@@ -614,7 +535,11 @@ class Study:
                         "library_name"
                     ].apply(lambda x: scrub_special_chars(str(x), sub="."))
                     # prepend sample name for easier alignment
-                    lib_subset["run_prefix"] = lib_subset["sample_name"] + "." + lib_subset[run_accession]
+                    lib_subset["run_prefix"] = (
+                        lib_subset["sample_name"]
+                        + "."
+                        + lib_subset[run_accession]
+                    )
                 else:
                     # fall back to sample + run id
                     lib_subset["sample_name"] = (
@@ -622,6 +547,7 @@ class Study:
                         + "."
                         + lib_subset[run_accession]
                     )
+                    lib_subset["run_prefix"] = lib_subset["sample_name"]
             else:
                 # fall back to sample + run id
                 lib_subset["sample_name"] = (
@@ -639,7 +565,7 @@ class Study:
                 + "strategies detected were: "
                 + str(lib_strats)
                 + " for project: "
-                + str(self.study_id)
+                + str(self.ebi_id)
             )
         else:
             md = pd.concat(lib_dfs_to_combine)
@@ -684,21 +610,27 @@ class Study:
                 )
 
             # adding catch for single files, assuming genome isolate
-            if len(md)==1:
-                layout = md.loc[0]["library_layout"]
-                md["qebil_prep_file"]= layout + "_Genome_Isolate_0"
+            if len(md) == 1:
+                layout = md.iloc[0]["library_layout"]
+                md["qebil_prep_file"] = layout + "_Genome_Isolate_0"
 
             else:
                 for index, row in md.iterrows():
                     sample_name = index
                     prep_type = format_prep_type(row, index)
                     layout = md.at[index, "library_layout"]
-
+                    # DEBUG: logger.info("Layout is: " + str(layout))
                     if prep_type not in sample_count_dict:
-                        sample_count_dict[prep_type] = {layout: {sample_name: 0}}
+                        sample_count_dict[prep_type] = {
+                            layout: {sample_name: 0}
+                        }
                     elif layout not in sample_count_dict[prep_type]:
-                        sample_count_dict[prep_type] = {layout: {sample_name: 0}}
-                    elif sample_name not in sample_count_dict[prep_type][layout]:
+                        sample_count_dict[prep_type] = {
+                            layout: {sample_name: 0}
+                        }
+                    elif (
+                        sample_name not in sample_count_dict[prep_type][layout]
+                    ):
                         sample_count_dict[prep_type][layout][sample_name] = 0
                     else:
                         sample_count_dict[prep_type][layout][sample_name] += 1
@@ -710,7 +642,9 @@ class Study:
                         + "_"
                         + prep_type
                         + "_"
-                        + str(sample_count_dict[prep_type][layout][sample_name])
+                        + str(
+                            sample_count_dict[prep_type][layout][sample_name]
+                        )
                     )
 
             for rc in _READ_COLUMNS:

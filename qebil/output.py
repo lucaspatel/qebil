@@ -1,4 +1,5 @@
 import glob
+from os import path, remove
 
 from qebil.log import logger
 from qebil.tools.util import get_ebi_ids
@@ -215,26 +216,26 @@ def write_metadata_files(
         # prepend file prefix if not empty
 
         if prefix != "":
-            file_prefix = prefix + "_" + proj.ebi_id
+            file_prefix = prefix + "_" + proj_id
         else:
-            file_prefix = proj.ebi_id
+            file_prefix = proj_id
 
         # extract the Study metadata
         md = proj.metadata
 
         # check that the metadata has at least one sample
         if len(md) > 0:
-            # writes out the metadata as a single file
-            ebi_prefix = output_dir + file_prefix
-            md.to_csv(ebi_prefix + suffix + ".tsv", sep="\t", index=True)
-
             if output_qiita:
                 # use helper to split into info files
                 write_qebil_info_files(
                     proj, output_dir, file_prefix, suffix, prep_max
                 )
+                suffix = ".QIIME_mapping_file"
+            # writes out the metadata as a single file
+            proj_prefix = output_dir + file_prefix
+            md.to_csv(proj_prefix + suffix + ".tsv", sep="\t", index=True)
         else:
-            logger.warning("No metadata to write for: " + proj.ebi_id)
+            logger.warning("No metadata to write for: " + proj_id)
 
 
 def write_qebil_info_files(
@@ -327,8 +328,9 @@ def write_qebil_info_files(
             # adding way to check for min essential target gene
             # information where needed
             prep_df = final_df[final_df["qebil_prep_file"] == prep_file]
+            layout = prep_file.split("_")[0]
             if (
-                prep_file.split("_")[0] in amplicon_type_preps
+                prep_file.split("_")[1] in amplicon_type_preps
             ):  # check to see if the prep is amplicon-style,
                 # specified by list above
                 for min_prep in amplicon_min_prep_list:
@@ -350,49 +352,81 @@ def write_qebil_info_files(
             prep_count = 0
             for prep in prep_df_list:
                 # adding loop to write out missing files
+                valid_fp = (
+                    prefix
+                    + "_prep_info_"
+                    + prep_file
+                    + "_part"
+                    + str(prep_count)
+                    + prep_file_suffix
+                )
+                missing_fp = (
+                    prefix
+                    + "_prep_info_"
+                    + prep_file
+                    + "_part"
+                    + str(prep_count)
+                    + ".MISSING"
+                    + prep_file_suffix
+                )
+                toomany_fp = (
+                    prefix
+                    + "_prep_info_"
+                    + prep_file
+                    + "_part"
+                    + str(prep_count)
+                    + ".TOOMANYREADS"
+                    + prep_file_suffix
+                )
+
                 file_status_dict = {
-                    "VALID": [],
-                    "MISSING": [],
-                    "TOOMANYREADS": [],
+                    "VALID": {"fp": valid_fp, "files": []},
+                    "MISSING": {"fp": missing_fp, "files": []},
+                    "TOOMANYREADS": {"fp": toomany_fp, "files": []},
                 }
                 for f in prep["run_prefix"]:
                     f_list = glob.glob(output_dir + f + "*fastq.gz")
                     if len(f_list) == 0:
-                        file_status_dict["MISSING"].append(f)
-                    elif len(f_list) > 2:
-                        file_status_dict["TOOMANYREADS"].append(f)
+                        file_status_dict["MISSING"]["files"].append(f)
+                        logger.warning("fastq file(s) missing for " +f)
+                    elif len(f_list) == 1:
+                        if layout == 'SINGLE':
+                            file_status_dict["VALID"]["files"].append(f)
+                        elif layout == 'PAIRED':
+                            logger.warning("fastq file missing for " +f)
+                            # for f in f_list:
+                                # remove(f)
+                        else:
+                            logger.error("Layout is unexpected: " + layout)                       
+                    elif len(f_list) == 2:
+                        if layout == 'SINGLE':
+                            file_status_dict["TOOMANYREADS"]["files"].append(f)
+                            logger.warning("Too many reads(" + len(f_list) + ") for " + f)
+                            # for f in f_list:
+                                # remove(f)
+                        elif layout == 'PAIRED':
+                            file_status_dict["VALID"]["files"].append(f)
+                        else:
+                            logger.error("Layout is unexpected: " + layout)
                     else:
-                        file_status_dict["VALID"].append(f)
-
+                        file_status_dict["TOOMANYREADS"]["files"].append(f)
+                        logger.warning("Too many reads(" + len(f_list) + ") for " + f
+                                       + " Try running again with --correct-index")
+                        
                 for k in file_status_dict.keys():
+                    # add loop to cleanup previous files to avoid confusion
+                    output_fp = file_status_dict[k]["fp"]
+                    if path.isfile(output_fp):
+                        remove(file_status_dict[k]["fp"])
+
                     subset_df = prep[
-                        prep["run_prefix"].isin(file_status_dict[k])
+                        prep["run_prefix"].isin(file_status_dict[k]["files"])
                     ]
                     if len(subset_df) > 0:
-                        if k != "VALID":  # only write for errors
-                            subset_df.to_csv(
-                                prefix
-                                + "_prep_info_"
-                                + prep_file
-                                + "_part"
-                                + str(prep_count)
-                                + "."
-                                + k
-                                + prep_file_suffix,
-                                sep="\t",
-                                index=True,
-                                index_label="sample_name",
-                            )
-                        else:
-                            subset_df.to_csv(
-                                prefix
-                                + "_prep_info_"
-                                + prep_file
-                                + "_part"
-                                + str(prep_count)
-                                + prep_file_suffix,
-                                sep="\t",
-                                index=True,
-                                index_label="sample_name",
-                            )
+                        subset_df.to_csv(
+                            output_fp,
+                            sep="\t",
+                            index=True,
+                            index_label="sample_name",
+                        )
                 prep_count += 1

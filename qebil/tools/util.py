@@ -4,6 +4,7 @@ import pandas as pd
 import PyPDF2
 import re
 import requests
+
 # from requests.exceptions import RequestException
 import urllib
 from urllib.request import urlretrieve
@@ -200,8 +201,7 @@ def parse_document(filepath):
             full_text = text_file.read()
             text_file.close()
             tokens = [
-                t
-                for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
+                t for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
             ]
 
     return tokens

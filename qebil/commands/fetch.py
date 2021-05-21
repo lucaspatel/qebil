@@ -17,7 +17,7 @@ from qebil.normalize import add_emp_info
 from qebil.output import (
     write_config_file,
     write_metadata_files,
-    write_qebil_info_files
+    write_qebil_info_files,
 )
 from qebil.process import deplete_on_the_fly
 from qebil.tools.metadata import load_metadata, set_criteria, augment_metadata
@@ -31,7 +31,13 @@ from qebil.tools.util import (
 
 
 def fetch_remote_studies(
-    study_list, full_details=True, max_samples="", random_subsample=False
+    study_list,
+    full_details=True,
+    max_samples="",
+    random_subsample=False,
+    output_dir="./",
+    prefix="",
+    overwrite=False,
 ):
     """Primary handler for retrieving studies from EBI
 
@@ -43,6 +49,12 @@ def fetch_remote_studies(
     -----------
     study_list: list
         list of EBI study/project IDs to retrieve
+    output_dir: string
+        directory where the metadata may be located
+    prefix: string
+        string to prepend file with when searching for local metadata
+    overwrite: bool
+        whether to look for local metadata befre fetching
     full_details: bool
         whether to retrieve full study metadata or just the basics
     max_samples: int
@@ -66,56 +78,69 @@ def fetch_remote_studies(
                 "Max samples: " + str(max_samples) + " is not type int."
             )
     for p in study_list:
-        study_dict[p] = Study.from_remote(
-            p,
-            full_details=full_details,
-            max_samples=max_samples,
-            random_subsample=random_subsample,
-        )
+        local_study = False
+        if not overwrite:
+            # to speed up processing, use existing metadata if available
+            local_study = check_existing_metadata(p, output_dir, prefix)
+
+        if local_study:
+            local_study.populate_sample_names()
+            # adding step to skip metadata retrieval if already performed
+            if "ebi_metadata_retrieved" not in local_study.metadata.columns:
+                local_study.populate_details(full_details)
+            study_dict[p] = local_study
+        else:  # nothing local, so fetch
+            study_dict[p] = Study.from_remote(
+                p,
+                full_details=full_details,
+                max_samples=max_samples,
+                random_subsample=random_subsample,
+            )
 
     return study_dict
 
 
-def check_existing_metadata(proj_list, output_dir="./", prefix=""):
+def check_existing_metadata(proj, output_dir="./", prefix=""):
     """Method to speed up reprocessing and interuptions with local files
 
     Parameters
     -----------
-    proj_list: [string]
-        list of EBI study/project IDs to retrieve
+    proj: string
+        EBI study/project ID to check
     output_dir: string
         directory where the metadata may be located
     prefix: string
-        string to prepend files and keys with
+        string to prepend file with when searching  for local metadata
 
     Returns
     -----------
-    study_dict: dict
-        dict of Study objects with study IDs as keys
+    tmp_study: qebil.Study or False
+        Study object if present
 
-
-    Returns
-    -----------
-    local_dict, msg: tuple of dict, string
-        the study dict created from the local metadata files and
-        a related message. If blank, no studies found
 
     """
-    local_dict = {}
-    msg = ""
+    local_md = ""
+    tmp_study = False
 
-    for p in proj_list:
-        if prefix == "":
-            ebi_prefix = p
-        else:
-            ebi_prefix = prefix + "_" + p
-        suffix = ".EBI_metadata"
-        ebi_md_file = output_dir + ebi_prefix + suffix + ".tsv"
-        if path.isfile(ebi_md_file):
-            local_dict[p] = ebi_md_file
-            msg = "Loading study from local metadata."
+    if prefix == "":
+        ebi_prefix = proj
+    else:
+        ebi_prefix = prefix + "_" + proj
 
-    return local_dict, msg
+    qiime_suffix = ".QIIME_mapping_file"
+    qiime_md_file = output_dir + ebi_prefix + qiime_suffix + ".tsv"
+    ebi_suffix = ".EBI_metadata"
+    ebi_md_file = output_dir + ebi_prefix + ebi_suffix + ".tsv"
+
+    if path.isfile(qiime_md_file):
+        local_md = qiime_md_file
+    elif path.isfile(ebi_md_file):
+        local_md = ebi_md_file
+
+    if local_md != "":
+        tmp_study = Study(load_metadata(local_md), proj)
+
+    return tmp_study
 
 
 @cli.group()
@@ -403,17 +428,8 @@ def fetch_project(
                     )
                     project_list += found_ids
 
-    # to speed up processing, use existing metadata if available
-    if not overwrite:
-        local_dict, msg = check_existing_metadata(
-            project_list, output_dir, prefix
-        )
-        if len(msg) > 0:
-            logger.info(msg)
-
-        for local_proj in local_dict.keys():
-            metadata_list.append(local_dict[local_proj])
-            project_list.remove(local_proj)
+    # create empty project dict to populate
+    project_dict = {}
 
     # get study information
     project_dict = fetch_remote_studies(
@@ -421,20 +437,41 @@ def fetch_project(
         full_details=qiita,
         max_samples=max_samples,
         random_subsample=random_subsample,
+        output_dir=output_dir,
+        prefix=prefix,
+        overwrite=overwrite,
     )
-    # now load the local files
+
+    # now load provided metadata
+    # TODO: move this out into its own command?
     for f in metadata_list:
         if prefix == "":
-            tmp_study = Study(load_metadata(f))
-            if tmp_study.study_id != "not provided":
-                tmp_study.populate_sample_names()
-                project_dict[tmp_study.study_id] = tmp_study
+            md = load_metadata(f)
+            if "study_accession" in self.metadata.columns:
+                 # assume this is from EBI
+                unique_study = self.metadata["study_accession"].unique()
+                if len(unique_study) == 1:
+                    tmp_study = Study(md,unique_study[0])
+                    tmp_study.populate_sample_names()
+                    self.populate_details(qiita)
+                    logger.info("Loaded metadata file: " + f
+                                + "\n Found EBI ID: " + tmp_study.ebi_id)
+                    project_dict[tmp_study.study_id] = tmp_study
+                elif len(unique_study) == 0:
+                    logger.warning("No study accession in metadata")
+                else:
+                    raise ValueError(
+                        "Metadata file should contain only one "
+                        + " unique study_accession value."
+                        + " Found: "
+                        + str(unique_study)
+                    )
             else:
                 logger.error(
                     "study_accession not in metadata file, skipping" + f
-                )
+                )                
 
-    # write out files to speed up recovered processing
+    # write out files to speed up recovery processing
     write_metadata_files(
         project_dict, output_dir, prefix, suffix, False, prep_max
     )
@@ -443,41 +480,63 @@ def fetch_project(
         proj = project_dict[proj_id]
         proj.filter_samples(select_dict)
 
-        qiita_id = detect_qiita_study(proj.metadata)
-        if qiita_id:
-            logger.error("Study already present in Qiita:" + qiita_id)
+        if prefix == "":
+            proj_prefix = proj_id
         else:
-            if qiita:
-                write_config_file(proj.details, output_dir + prefix)
-                proj.populate_preps()
-                if emp_protocol:
-                    proj.metadata = add_emp_info(proj.metadata)
+            proj_prefix = prefix + "_" + proj_id
 
-                write_qebil_info_files(
-                    proj, output_dir, prefix, max_prep=prep_max
-                )
+        if len(proj.metadata) == 0:
+            logger.error(
+                "No metadata retreived for EBI ID: "
+                + proj_id
+                + "Check connection and study webpage: "
+                + +"https://www.ebi.ac.uk/ena/browser/view/"
+                + proj_id
+            )
+        else:
+            qiita_id = detect_qiita_study(proj.metadata)
+            if qiita_id:
+                logger.error("Study already present in Qiita:" + qiita_id)
+            else:
+                if qiita:
+                    write_config_file(proj.details, output_dir + proj_prefix)
+                    proj.populate_preps()
+                    if emp_protocol:
+                        proj.metadata = add_emp_info(proj.metadata)
 
-                supp_md_list = list(add_metadata_file)
-
-                if len(supp_md_list) > 0:
-                    proj.metadata = augment_metadata(
-                        proj.metadata,
-                        supp_md_list,
-                        merge_column,
-                        emp_protocol,
+                    write_qebil_info_files(
+                        proj, output_dir, proj_prefix, max_prep=prep_max
                     )
 
-            if human_removal:
-                proj.metadata = deplete_on_the_fly(
-                    proj, cpus, output_dir, keep_files
-                )
-            elif download_fastq:
-                proj.metadata = fetch_fastqs(proj, output_dir, correct_index)
+                    supp_md_list = list(add_metadata_file)
 
-            # write out updated metadata
-            # bit of a kludge until if/when this is refactored
-            # but goal is to write out each loop instead of at end to avoid
-            # issues if a job dies early
-            write_metadata_files(
-                {proj_id: proj}, output_dir, prefix, suffix, qiita, prep_max
-            )
+                    if len(supp_md_list) > 0:
+                        proj.metadata = augment_metadata(
+                            proj.metadata,
+                            supp_md_list,
+                            merge_column,
+                            emp_protocol,
+                        )
+                    suffix = ""
+
+                if human_removal:
+                    proj.metadata = deplete_on_the_fly(
+                        proj, cpus, output_dir, keep_files
+                    )
+                elif download_fastq:
+                    proj.metadata = fetch_fastqs(
+                        proj, output_dir, correct_index
+                    )
+
+                # write out updated metadata
+                # bit of a kludge until if/when this is refactored
+                # but goal is to write out each loop instead of at end to avoid
+                # issues if a job dies early
+                write_metadata_files(
+                    {proj_id: proj},
+                    output_dir,
+                    prefix,
+                    suffix,
+                    qiita,
+                    prep_max,
+                )
