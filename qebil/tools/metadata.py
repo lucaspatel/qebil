@@ -350,7 +350,9 @@ def check_sample_type(input_df, validation_dict={}):
             if st_col_dict[s] > max_matches:
                 max_matches = st_col_dict[s]
                 match_col = s
-        logger.info("Automatically selected column: " + match_col + "to copy.")
+        logger.info(
+            "Automatically selected column: " + match_col + "to copy."
+        )
         input_df["qebil_sample_type"] = input_df[match_col].apply(
             lambda x: x.lower()
         )
@@ -837,7 +839,9 @@ def subset_metadata(md, max_samples, rand_sample=False):
             else:
                 md = md.head(max_samples)
         else:
-            raise ValueError("Expected boolean, received: " + str(rand_sample))
+            raise ValueError(
+                "Expected boolean, received: " + str(rand_sample)
+            )
     else:
         raise ValueError("Expected int, received: " + str(rand_sample))
 

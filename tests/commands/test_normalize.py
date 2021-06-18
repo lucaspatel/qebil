@@ -1,11 +1,16 @@
 import unittest
 from qebil.tools.util import setup_output_dir
+from os import path
+
 
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
+
 _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
 
+
 _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
+
 
 setup_output_dir(_TEST_OUTPUT_DIR)
 

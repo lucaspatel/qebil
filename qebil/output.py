@@ -1,8 +1,40 @@
 import glob
 from os import path, remove
+from os.path import join
 
 from qebil.log import logger
 from qebil.tools.util import get_ebi_ids
+
+from functools import partial
+
+
+def update_qebil_status(output_dir, prefix, msg="", overwrite=False):
+    """Method to track progress of qebil
+
+    Parameters
+    ----------
+    output_dir: string
+        path where the files should be written
+    prefix: string
+        prefix to prepend to output info files
+    status: string
+        type of status file to write
+    msg: string
+        text to include in the status file
+
+    """
+    # TODO: refactor out_folder as Study property
+    out_folder = partial(join, output_dir)
+    status_file = out_folder(prefix + ".qebil_status")
+
+    # Write out status file with message if provided
+    if overwrite:
+        open_type = "w"
+    else:
+        open_type = "a"
+    c_file = open(status_file, open_type)
+    c_file.write(msg)
+    c_file.close()
 
 
 def write_config_files(proj_dict, output_dir, prefix):
@@ -34,16 +66,18 @@ def write_config_files(proj_dict, output_dir, prefix):
             # if there is a user prefix, prepend to the project ID
             file_prefix = prefix + "_" + proj
 
-        file_prefix = output_dir + file_prefix
+        config_prefix = output_dir + file_prefix
 
         # gets the xml_dict in the Study object
         study_details = proj_dict[proj].details
 
         if len(study_details) > 0:
             # writes out the files needed for Qiita study generation
-            write_config_file(study_details, file_prefix)
+            write_config_file(study_details, config_prefix)
         else:
-            logger.warning("No study details found for " + str(proj))
+            msg = "No study details found for " + str(proj)
+            logger.warning(msg)
+            update_qebil_status(output_dir, file_prefix, msg)
 
 
 def write_config_file(xml_dict, prefix=""):
@@ -52,8 +86,6 @@ def write_config_file(xml_dict, prefix=""):
     This method writes out the study_config and study_title
     files needed for automatic loading in Qiita. The format
     is very specific for downstream processing.
-
-
 
     Parameters
     ----------
@@ -101,7 +133,7 @@ def write_config_file(xml_dict, prefix=""):
     # setting alias to project ID and ignoring EBI alias unless
     # no description found
     logger.info("Project ID is: " + str(proj_id))
-    alias = alias.replace(null_val, str(proj_id))
+    alias = alias.replace(null_val, str(proj_id) + "; ")
     description = description.replace(null_val, str(study_id)) + "; "
 
     # adding study ID to description
@@ -125,29 +157,22 @@ def write_config_file(xml_dict, prefix=""):
             )
 
         if "STUDY_DESCRIPTION" in desc_dict.keys():
-            description = description.replace(
-                "XXEBIXX", desc_dict["STUDY_DESCRIPTION"]
-            )
+            description += desc_dict["STUDY_DESCRIPTION"]
         elif "DESCRIPTION" in desc_dict.keys():
-            description = description.replace(
-                null_val, desc_dict["DESCRIPTION"]
-            )
+            description += desc_dict["DESCRIPTION"]
         else:
-            if "@alias" in parse_dict.keys():
-                description = description.replace(
-                    null_val, parse_dict["@alias"]
-                )
-                logger.warning(
-                    "No description found, using EBI alias '"
-                    + description
-                    + "' for description"
-                )
-            else:
-                logger.warning(
-                    "No description found, using "
-                    + null_val
-                    + " for description"
-                )
+            logger.warning(
+                "No description found, using " + null_val + " for description"
+            )
+
+        if "@alias" in parse_dict.keys():
+            tmp_alias = parse_dict["@alias"]
+            logger.warning(
+                "Found EBI alias, appending '"
+                + tmp_alias
+                + "' for description"
+            )
+            alias += tmp_alias
 
         if "STUDY_TITLE" in desc_dict.keys():
             title = title.replace(null_val, desc_dict["STUDY_TITLE"])
@@ -162,7 +187,11 @@ def write_config_file(xml_dict, prefix=""):
         + description
         + abstract
         + "\nefo_ids = 1\n[optional]"
-    )
+    ).replace(
+        "%", "%%"
+    )  # need to avoid % sign
+
+    title = title.replace("%", "%%")  # need to avoid % sign
 
     study_config_file = prefix + "study_config.txt"
     study_title_file = prefix + "study_title.txt"
@@ -231,15 +260,28 @@ def write_metadata_files(
                     proj, output_dir, file_prefix, suffix, prep_max
                 )
                 suffix = ".QIIME_mapping_file"
+
             # writes out the metadata as a single file
             proj_prefix = output_dir + file_prefix
-            md.to_csv(proj_prefix + suffix + ".tsv", sep="\t", index=True)
+            md.to_csv(
+                proj_prefix + suffix + ".tsv",
+                sep="\t",
+                index=True,
+                index_label="sample_name",
+            )
         else:
-            logger.warning("No metadata to write for: " + proj_id)
+            msg = "No metadata to write for: " + proj_id
+            logger.warning(msg)
+            update_qebil_status(output_dir, file_prefix, msg)
 
 
 def write_qebil_info_files(
-    study, output_dir, file_prefix, file_suffix="", max_prep=250
+    study,
+    output_dir,
+    file_prefix,
+    file_suffix="",
+    max_prep=250,
+    update_status=True,
 ):
     """Writes out the prep and sample information files
 
@@ -285,6 +327,7 @@ def write_qebil_info_files(
     prefix = output_dir + "/" + file_prefix
     sample_info_filename = prefix + "_sample_info" + file_suffix + ".tsv"
     prep_file_suffix = file_suffix + ".tsv"
+    valid_prep = False  # flag to enable writing of .qebil_status file
 
     final_df = study.metadata
     prep_info_columns = study.prep_columns
@@ -346,7 +389,7 @@ def write_qebil_info_files(
             ]
             prep_df = prep_df.dropna(axis=1, how="all")
             prep_df_list = [
-                prep_df[i: i + max_prep]
+                prep_df[i : i + max_prep]
                 for i in range(0, prep_df.shape[0], max_prep)
             ]
             prep_count = 0
@@ -388,45 +431,97 @@ def write_qebil_info_files(
                     f_list = glob.glob(output_dir + f + "*fastq.gz")
                     if len(f_list) == 0:
                         file_status_dict["MISSING"]["files"].append(f)
-                        logger.warning("fastq file(s) missing for " +f)
+                        logger.warning("fastq file(s) missing for " + f)
                     elif len(f_list) == 1:
-                        if layout == 'SINGLE':
+                        if layout == "SINGLE":
                             file_status_dict["VALID"]["files"].append(f)
-                        elif layout == 'PAIRED':
-                            logger.warning("fastq file missing for " +f)
+                        elif layout == "PAIRED":
+                            logger.warning("fastq file missing for " + f)
                             # for f in f_list:
-                                # remove(f)
+                            # remove(f)
                         else:
-                            logger.error("Layout is unexpected: " + layout)                       
+                            logger.error("Layout is unexpected: " + layout)
                     elif len(f_list) == 2:
-                        if layout == 'SINGLE':
-                            file_status_dict["TOOMANYREADS"]["files"].append(f)
-                            logger.warning("Too many reads(" + len(f_list) + ") for " + f)
+                        if layout == "SINGLE":
+                            file_status_dict["TOOMANYREADS"]["files"].append(
+                                f
+                            )
+                            logger.warning(
+                                "Too many reads(" + len(f_list) + ") for " + f
+                            )
                             # for f in f_list:
-                                # remove(f)
-                        elif layout == 'PAIRED':
+                            # remove(f)
+                        elif layout == "PAIRED":
                             file_status_dict["VALID"]["files"].append(f)
                         else:
                             logger.error("Layout is unexpected: " + layout)
                     else:
                         file_status_dict["TOOMANYREADS"]["files"].append(f)
-                        logger.warning("Too many reads(" + len(f_list) + ") for " + f
-                                       + " Try running again with --correct-index")
-                        
-                for k in file_status_dict.keys():
-                    # add loop to cleanup previous files to avoid confusion
-                    output_fp = file_status_dict[k]["fp"]
-                    if path.isfile(output_fp):
-                        remove(file_status_dict[k]["fp"])
-
-                    subset_df = prep[
-                        prep["run_prefix"].isin(file_status_dict[k]["files"])
-                    ]
-                    if len(subset_df) > 0:
-                        subset_df.to_csv(
-                            output_fp,
-                            sep="\t",
-                            index=True,
-                            index_label="sample_name",
+                        logger.warning(
+                            "Too many reads("
+                            + str(len(f_list))
+                            + ") for "
+                            + f
+                            + "with layout "
+                            + layout
+                            + " Try running again with --correct-index"
                         )
+
+                # see if there are valid files first
+                valid_fp = file_status_dict["VALID"]["fp"]
+                if path.isfile(valid_fp):
+                    remove(file_status_dict["VALID"]["fp"])
+                valid_df = prep[
+                    prep["run_prefix"].isin(
+                        file_status_dict["VALID"]["files"]
+                    )
+                ]
+                if len(valid_df) > 0:
+                    # update as complete
+                    if not valid_prep and update_status:
+                        update_qebil_status(
+                            output_dir,
+                            file_prefix,
+                            msg="complete\n",
+                            overwrite=True,
+                        )
+                        valid_prep = True
+
+                    valid_df.to_csv(
+                        valid_fp,
+                        sep="\t",
+                        index=True,
+                        index_label="sample_name",
+                    )
+
+                for k in file_status_dict.keys():
+                    if k != "VALID":
+                        # add loop to cleanup previous files to avoid confusion
+                        output_fp = file_status_dict[k]["fp"]
+                        if path.isfile(output_fp):
+                            remove(file_status_dict[k]["fp"])
+
+                        subset_df = prep[
+                            prep["run_prefix"].isin(
+                                file_status_dict[k]["files"]
+                            )
+                        ]
+
+                        if len(subset_df) > 0:
+                            if update_status:
+                                update_qebil_status(
+                                    output_dir,
+                                    file_prefix,
+                                    "with issue: "
+                                    + k
+                                    + " files for "
+                                    + prep_file
+                                    + "\n",
+                                )
+                            subset_df.to_csv(
+                                output_fp,
+                                sep="\t",
+                                index=True,
+                                index_label="sample_name",
+                            )
                 prep_count += 1

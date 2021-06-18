@@ -90,7 +90,7 @@ class utilTest(unittest.TestCase):
             "https://www.nature.com/articles/s41598-021-83922-6.pdf"
         )
 
-        self.assertEqual(len(tokens_html), 84226)
+        self.assertEqual(len(tokens_html), 84361) # this changes a lot...
         self.assertEqual(len(tokens_pdf), 15771)
 
     def scrape_ebi_ids(self):

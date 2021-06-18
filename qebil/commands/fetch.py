@@ -69,6 +69,8 @@ def fetch_remote_studies(
 
     """
 
+    from qebil.log import logger
+
     study_dict = {}
     if max_samples != "":
         try:
@@ -79,23 +81,43 @@ def fetch_remote_studies(
             )
     for p in study_list:
         local_study = False
+        skip = False
         if not overwrite:
-            # to speed up processing, use existing metadata if available
-            local_study = check_existing_metadata(p, output_dir, prefix)
+            if not overwrite:
+                # check to see if the study is already complete, and skip if so
+                status_file = output_dir + prefix + ".qebil_status"
+                if path.isfile(status_file):
+                    status_file = open(status_file, "r")
+                    last_line = status_file.readlines()[-1]
+                    status_file.close()
+                    if last_line == "complete":
+                        logger.error(
+                            "QEBIL status is complete, skipping: "
+                            + p
+                            + " Add --overwrite to re-download."
+                        )
+                        skip = True
+            if not skip:
+                # to speed up processing, use existing metadata if available
+                local_study = check_existing_metadata(p, output_dir, prefix)
 
         if local_study:
             local_study.populate_sample_names()
             # adding step to skip metadata retrieval if already performed
             if "ebi_metadata_retrieved" not in local_study.metadata.columns:
                 local_study.populate_details(full_details)
+            else:
+                local_study.populate_details()
             study_dict[p] = local_study
-        else:  # nothing local, so fetch
-            study_dict[p] = Study.from_remote(
-                p,
-                full_details=full_details,
-                max_samples=max_samples,
-                random_subsample=random_subsample,
-            )
+        else:
+            if not skip:
+                # nothing local, and not complete so fetch
+                study_dict[p] = Study.from_remote(
+                    p,
+                    full_details=full_details,
+                    max_samples=max_samples,
+                    random_subsample=random_subsample,
+                )
 
     return study_dict
 
@@ -447,15 +469,19 @@ def fetch_project(
     for f in metadata_list:
         if prefix == "":
             md = load_metadata(f)
-            if "study_accession" in self.metadata.columns:
-                 # assume this is from EBI
-                unique_study = self.metadata["study_accession"].unique()
+            if "study_accession" in md.columns:
+                # assume this is from EBI
+                unique_study = md["study_accession"].unique()
                 if len(unique_study) == 1:
-                    tmp_study = Study(md,unique_study[0])
+                    tmp_study = Study(md, unique_study[0])
                     tmp_study.populate_sample_names()
-                    self.populate_details(qiita)
-                    logger.info("Loaded metadata file: " + f
-                                + "\n Found EBI ID: " + tmp_study.ebi_id)
+                    tmp_study.populate_details(qiita)
+                    logger.info(
+                        "Loaded metadata file: "
+                        + f
+                        + "\n Found EBI ID: "
+                        + tmp_study.ebi_id
+                    )
                     project_dict[tmp_study.study_id] = tmp_study
                 elif len(unique_study) == 0:
                     logger.warning("No study accession in metadata")
@@ -469,7 +495,7 @@ def fetch_project(
             else:
                 logger.error(
                     "study_accession not in metadata file, skipping" + f
-                )                
+                )
 
     # write out files to speed up recovery processing
     write_metadata_files(
@@ -487,11 +513,14 @@ def fetch_project(
 
         if len(proj.metadata) == 0:
             logger.error(
-                "No metadata retreived for EBI ID: "
+                "No samples retreived for EBI ID: "
                 + proj_id
+                + " with supplied selection criteria."
                 + "Check connection and study webpage: "
-                + +"https://www.ebi.ac.uk/ena/browser/view/"
+                + "https://www.ebi.ac.uk/ena/browser/view/"
                 + proj_id
+                + " or re-run with --no-filter to obtain any"
+                + " available samples."
             )
         else:
             qiita_id = detect_qiita_study(proj.metadata)
@@ -505,7 +534,11 @@ def fetch_project(
                         proj.metadata = add_emp_info(proj.metadata)
 
                     write_qebil_info_files(
-                        proj, output_dir, proj_prefix, max_prep=prep_max
+                        proj,
+                        output_dir,
+                        proj_prefix,
+                        max_prep=prep_max,
+                        update_status=False,  # suppress here, update below
                     )
 
                     supp_md_list = list(add_metadata_file)

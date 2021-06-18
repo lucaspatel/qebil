@@ -201,7 +201,8 @@ def parse_document(filepath):
             full_text = text_file.read()
             text_file.close()
             tokens = [
-                t for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
+                t
+                for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
             ]
 
     return tokens

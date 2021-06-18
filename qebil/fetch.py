@@ -30,7 +30,9 @@ def fetch_ebi_info(accession):
     # could use this list valid_stems=["PRJEB", "PRJNA", "ERP",
     # "SRP", "SRR", "SRS"] to check format before requesting url
     url = (
-        "http://www.ebi.ac.uk/ena/data/view/" + str(accession) + "&display=xml"
+        "http://www.ebi.ac.uk/ena/data/view/"
+        + str(accession)
+        + "&display=xml"
     )
     logger.info(url)
     try:
@@ -184,7 +186,9 @@ def fetch_fastq_files(
                 logger.info("Removing " + r)
                 remove(r)
             else:
-                logger.warning("Could not remove" + r + "file does not exist.")
+                logger.warning(
+                    "Could not remove" + r + "file does not exist."
+                )
     else:
         if remove_index_file:
             logger.info("Removing index file")
@@ -244,36 +248,45 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
 
     """
     md = study.metadata
+    row_list = []
 
-    for index in md.index:
+    for index, row in md.iterrows():
         run_prefix = ""
         ebi_dict = {}
+        new_row = row
         try:
-            run_prefix = md.at[index, "run_prefix"]
+            run_prefix = row["run_prefix"]
         except KeyError:
             logger.warning("No run_prefix in metadata for: " + index)
         if len(run_prefix) > 0:
-            logger.info("Unpacking: " + str(md.at[index, "fastq_ftp"]))
+            logger.info("Unpacking: " + str(row["fastq_ftp"]))
             ebi_dict = unpack_fastq_ftp(
-                str(md.at[index, "fastq_ftp"]), str(md.at[index, "fastq_md5"])
+                str(row["fastq_ftp"]), str(row["fastq_md5"])
             )
             if len(ebi_dict) == 0:
                 logger.warning(
                     "No fastq files to download found for\n" + run_prefix
                 )
             else:
-                md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
+                row["qebil_raw_reads"] = fetch_fastq_files(
                     run_prefix, ebi_dict, output_dir, remove_index_file
                 )
-                if md.at[index, "qebil_raw_reads"] == "error":
+                if row["qebil_raw_reads"] == "error":
                     logger.warning("Issue retrieving files for " + run_prefix)
                 else:
                     logger.info(
                         "Retrieved "
                         + run_prefix
                         + " with "
-                        + str(md.at[index, "qebil_raw_reads"])
+                        + str(row["qebil_raw_reads"])
                         + " reads."
                     )
+        # even if it fails, we'll need to return the row
+        row_list.append(new_row)
+
+    # combine the rows back together
+    md = pd.DataFrame()
+    for r in row_list:
+        md = md.append(r)
 
     return md

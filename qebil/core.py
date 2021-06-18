@@ -38,6 +38,10 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "run_accession",
     "qebil_ebi_import",
     "qebil_prep_file",
+    "experiment_alias",
+    "experiment_title",
+    "experiment_title_specific",
+    "library_name",
 ]
 
 
@@ -192,7 +196,9 @@ class Study:
 
         """
         if not isinstance(ebi_id, str):
-            raise ValueError("Did not receive string, instead: " + str(ebi_id))
+            raise ValueError(
+                "Did not receive string, instead: " + str(ebi_id)
+            )
         else:
             md = fetch_ebi_metadata(ebi_id, fields)
             tmp_study = cls(md, ebi_id)
@@ -200,8 +206,10 @@ class Study:
                 # subset the study if the user requests before the
                 # time-consuming per sample/run metadata retrieval
                 if isinstance(max_samples, int):
-                    tmp_study.metadata = subset_metadata(md, max_samples, random_subsample)
-                
+                    tmp_study.metadata = subset_metadata(
+                        md, max_samples, random_subsample
+                    )
+
                 tmp_study.populate_sample_names()
                 tmp_study.populate_details(full_details)
             else:
@@ -525,7 +533,9 @@ class Study:
                 lib_subset["sample_name"] = lib_subset[identifier]
                 # prepend sample name for easier alignment
                 lib_subset["run_prefix"] = (
-                    lib_subset["sample_name"] + "." + lib_subset[run_accession]
+                    lib_subset["sample_name"]
+                    + "."
+                    + lib_subset[run_accession]
                 )
             elif "library_name" in md.keys():
                 # users like to put their helpful info here
@@ -597,6 +607,7 @@ class Study:
 
         md = qebil_format(self.metadata)
         sample_count_dict = {}
+        row_list = []
 
         if len(md) == 0:
             logger.error("Failed to create preps, no samples in metadata")
@@ -609,17 +620,36 @@ class Study:
                     + str(md.columns)
                 )
 
-            # adding catch for single files, assuming genome isolate
-            if len(md) == 1:
-                layout = md.iloc[0]["library_layout"]
-                md["qebil_prep_file"] = layout + "_Genome_Isolate_0"
+            # adding catch for single files, to detect genome isolate
+            layout = md.iloc[0]["library_layout"]
+            source = md.iloc[0]["library_source"]
+            name = md.iloc[0]["scientific_name"]
+            strategy = md.iloc[0]["library_strategy"]
 
+            if (
+                len(md) == 1
+                and layout.lower() not in ["amplicon"]
+                and (
+                    "meta" not in source.lower()
+                    or "metagenom" not in name.lower()
+                )
+            ):
+                logger.info(
+                    "Only one sample in study "
+                    + self.proj_id
+                    + " with library_strategy: "
+                    + strategy
+                    + " and scientific_name: "
+                    + name
+                    + " . Setting prep type to Genome_Isolate"
+                )
+                md["qebil_prep_file"] = layout + "_Genome_Isolate_0"
             else:
                 for index, row in md.iterrows():
                     sample_name = index
                     prep_type = format_prep_type(row, index)
-                    layout = md.at[index, "library_layout"]
-                    # DEBUG: logger.info("Layout is: " + str(layout))
+                    layout = row["library_layout"]
+                    logger.info("Layout is: " + str(layout))
                     if prep_type not in sample_count_dict:
                         sample_count_dict[prep_type] = {
                             layout: {sample_name: 0}
@@ -629,15 +659,18 @@ class Study:
                             layout: {sample_name: 0}
                         }
                     elif (
-                        sample_name not in sample_count_dict[prep_type][layout]
+                        sample_name
+                        not in sample_count_dict[prep_type][layout]
                     ):
                         sample_count_dict[prep_type][layout][sample_name] = 0
                     else:
                         sample_count_dict[prep_type][layout][sample_name] += 1
 
                     # this sets the key used for splitting the files into
-                    # prep_info templates
-                    md.at[index, "qebil_prep_file"] = (
+                    # prep_info templates. because indices can be duplicated
+                    # at this stage still, need to carefully add
+                    new_row = row
+                    new_row["qebil_prep_file"] = (
                         layout
                         + "_"
                         + prep_type
@@ -646,6 +679,12 @@ class Study:
                             sample_count_dict[prep_type][layout][sample_name]
                         )
                     )
+                    row_list.append(new_row)
+
+                # combine the rows back together
+                md = pd.DataFrame()
+                for r in row_list:
+                    md = md.append(r)
 
             for rc in _READ_COLUMNS:
                 if rc not in self.metadata.columns:
