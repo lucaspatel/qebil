@@ -7,7 +7,6 @@ from qebil.log import logger
 from qebil.tools.fastq import (
     unpack_fastq_ftp,
     get_read_count,
-    check_valid_fastq,
     remove_index_read_file,
 )
 from qebil.tools.util import retrieve_ftp_file
@@ -177,7 +176,7 @@ def fetch_fastq_files(
     if len(failed_list) > 0:
         raw_reads = "error"
         logger.warning(
-            "The fastq file(s) for the failed to download for:"
+            "The fastq file(s) failed to download for:"
             + str(failed_list)
             + " removing partial"
             + " fastq files."
@@ -196,10 +195,8 @@ def fetch_fastq_files(
             remove_index_read_file(run_prefix)
 
         if len(local_read_dict) == 1:
-            valid = check_valid_fastq(local_read_dict["read1"])
-            if valid:
-                raw_reads = get_read_count(local_read_dict["read1"])
-            else:
+            raw_reads = get_read_count(local_read_dict["read1"])
+            if raw_reads == "fqtools error":
                 logger.warning(
                     "Check file validity failed for "
                     + str(local_read_dict["read1"])
@@ -208,14 +205,10 @@ def fetch_fastq_files(
                 remove(local_read_dict["read1"])
                 raw_reads = "error"
         elif len(local_read_dict) == 2:
-            valid = check_valid_fastq(local_read_dict["read1"])
-            if valid:
-                valid = check_valid_fastq(local_read_dict["read2"])
-            if valid:
-                raw_reads = get_read_count(
-                    local_read_dict["read1"], local_read_dict["read2"]
-                )
-            else:
+            raw_reads = get_read_count(
+                local_read_dict["read1"], local_read_dict["read2"]
+            )
+            if raw_reads == "fqtools error":
                 logger.warning(
                     "Check file validity failed for "
                     + str(local_read_dict["read1"].replace("R1", "R*"))
@@ -224,7 +217,6 @@ def fetch_fastq_files(
                 remove(local_read_dict["read1"])
                 remove(local_read_dict["read2"])
                 raw_reads = "error"
-
         else:
             logger.warning(
                 "Read count not possible for"
@@ -243,44 +235,58 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
     need to be able to recover and some will want to minimize the storage
     footprint for heavily host contaminated files.
 
-    This may be done more simply and elegantly so consider refactor.
+    This may be done more simply and elegantly so consider refactor?
+
     Parameters
     ----------
-    md: pd.DataFrame
-        updated metadata with read information
+    study: qebil.Study
+        Study object
+    output_dir: string
+        where to write the files
+    remove_index_file: bool
+        whether to resolve studies with three reads to remove the index file
 
     """
     md = study.metadata
+    row_list = []
 
-    for index in md.index:
+    for index, row in md.iterrows():
         run_prefix = ""
         ebi_dict = {}
+        new_row = row
         try:
-            run_prefix = md.at[index, "run_prefix"]
+            run_prefix = row["run_prefix"]
         except KeyError:
             logger.warning("No run_prefix in metadata for: " + index)
         if len(run_prefix) > 0:
-            logger.info("Unpacking: " + str(md.at[index, "fastq_ftp"]))
+            logger.info("Unpacking: " + str(row["fastq_ftp"]))
             ebi_dict = unpack_fastq_ftp(
-                str(md.at[index, "fastq_ftp"]), str(md.at[index, "fastq_md5"])
+                str(row["fastq_ftp"]), str(row["fastq_md5"])
             )
-            if len(ebi_dict) > 0:
-                md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
+            if len(ebi_dict) == 0:
+                logger.warning(
+                    "No fastq files to download found for\n" + run_prefix
+                )
+            else:
+                row["qebil_raw_reads"] = fetch_fastq_files(
                     run_prefix, ebi_dict, output_dir, remove_index_file
                 )
-                if md.at[index, "qebil_raw_reads"] != "error":
+                if row["qebil_raw_reads"] == "error":
+                    logger.warning("Issue retrieving files for " + run_prefix)
+                else:
                     logger.info(
                         "Retrieved "
                         + run_prefix
                         + " with "
-                        + str(md.at[index, "qebil_raw_reads"])
+                        + str(row["qebil_raw_reads"])
                         + " reads."
                     )
-                else:
-                    logger.warning("Issue retrieving files for " + run_prefix)
-            else:
-                logger.warning(
-                    "No fastq files to download found for\n" + run_prefix
-                )
+        # even if it fails, we'll need to return the row
+        row_list.append(new_row)
+
+    # combine the rows back together
+    md = pd.DataFrame()
+    for r in row_list:
+        md = md.append(r)
 
     return md

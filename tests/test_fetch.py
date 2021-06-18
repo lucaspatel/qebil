@@ -11,6 +11,7 @@ from qebil.core import Study
 import glob
 from os import remove, makedirs, path
 import pandas as pd
+from qebil.log import setup_log
 
 from qebil.tools.util import setup_output_dir
 
@@ -33,6 +34,18 @@ def test_stage_output():
 
 
 class FetchTest(unittest.TestCase):
+    def setUp(self):
+        prefix = "test"
+        suffix = "example"
+        quiet = False
+        test_log_file = _TEST_OUTPUT_DIR + prefix + suffix + ".log"
+
+        if path.isfile(test_log_file):
+            remove(test_log_file)
+
+        setup_log(_TEST_OUTPUT_DIR, prefix, suffix, quiet)
+        from qebil.log import logger
+
     def test_fetch_fastq_files(self):
         test_run_prefix = "SAMN16049500.SRR12672280"
         test_fastq_ftp_string = (
@@ -1094,7 +1107,10 @@ class FetchTest(unittest.TestCase):
         )
         print(test_expected_df.columns)
         print(test_result_df.columns)
-        assert_frame_equal(test_expected_df, test_result_df)
+        assert_frame_equal(
+            test_expected_df.sort_index(axis=1),
+            test_result_df.sort_index(axis=1),
+        )
         self.assertEqual(
             list(test_limited_result_df.columns), test_limited_fields
         )

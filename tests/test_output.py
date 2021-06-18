@@ -451,7 +451,7 @@ class OutputTest(unittest.TestCase):
         )
         created_prep_df = pd.read_csv(
             _TEST_OUTPUT_DIR
-            + "/test_qiita_SRP283872_prep_info_Metagenomic_0_part0.MISSING.tsv",
+            + "/test_qiita_SRP283872_prep_info_PAIRED_Metagenomic_0_part0.MISSING.tsv",
             sep="\t",
             header=0,
         )
@@ -463,6 +463,7 @@ class OutputTest(unittest.TestCase):
         """Tests the creation of sample and prep information files"""
         test_study = Study.from_remote(test_study_id, full_details=True)
         test_study.populate_preps()
+        print("test_study columns: " + test_study.metadata.columns)
         write_qebil_info_files(
             test_study,
             _TEST_OUTPUT_DIR,
@@ -491,8 +492,14 @@ class OutputTest(unittest.TestCase):
             header=0,
         )
 
-        assert_frame_equal(test_sample_df, created_sample_df)
-        assert_frame_equal(test_prep_df, created_prep_df)
+        assert_frame_equal(
+            test_sample_df.sort_index(axis=1),
+            created_sample_df.sort_index(axis=1),
+        )
+        assert_frame_equal(
+            test_prep_df.sort_index(axis=1),
+            created_prep_df.sort_index(axis=1),
+        )
 
         cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
         for c in cleanup_list:

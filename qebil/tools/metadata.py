@@ -6,17 +6,28 @@ from qebil.log import logger
 from qebil.normalize import add_emp_info
 
 
-this_dir, this_filename = path.split(__file__)
+_THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
 
-_qebil_known_sample_types = path.join(
-    this_dir, "..", "support_files", "known_sample_types.yaml"
+_QEBIL_KNOWN_SAMPLE_TYPES = path.join(
+    _THIS_DIR, "..", "support_files", "known_sample_types.yaml"
 )
 
 
 _QIITA_RESTRICTED_TERMS = path.join(
-    this_dir, "..", "support_files", "reserved_words.yaml"
+    _THIS_DIR, "..", "support_files", "reserved_words.yaml"
 )
+
+
+_SAMPLE_NAME_ALIASES = [
+    "sample id",
+    "sample_id",
+    "sampleid",
+    "sample-id",
+    "sample name",
+    "#SampleID",
+    "#sampleid",
+]
 
 
 NULL_DICT = {
@@ -48,7 +59,7 @@ def load_metadata(filename):
     load_df = pd.DataFrame()
 
     if path.isfile(filename):
-        load_df = pd.read_csv(
+        tmp_df = pd.read_csv(
             filename,
             sep="\t",
             dtype=str,
@@ -61,26 +72,19 @@ def load_metadata(filename):
             header=0,
         )
 
-        if "sample_name" not in load_df.columns:
+        if "sample_name" not in list(tmp_df.columns):
             # handle QIIME formatted names
-            load_df = load_df.rename(
-                columns={
-                    "sample id": "sample_name",
-                    "sample_id": "sample_name",
-                    "sampleid": "sample_name",
-                    "sample-id": "sample_name",
-                    "sample name": "sample_name",
-                    "#SampleID": "sample_name",
-                    "#sampleid": "sample_name",
-                }
-            )
-        if "sample_name" in list(load_df.columns):
-            logger.info(
-                "Loaded " + filename + " with columns " + str(load_df.columns)
-            )
-        else:
+            found_sn = False
+            for s in _SAMPLE_NAME_ALIASES:
+                if not found_sn:
+                    if s in tmp_df.columns:
+                        found_sn = True
+                        tmp_df["sample_name"] = tmp_df[s]
+                        logger.warning("'sample_name' mapped from: " + s)
+
+        if "sample_name" not in list(tmp_df.columns):
             # try again as csv
-            load_df = pd.read_csv(
+            tmp_df = pd.read_csv(
                 filename,
                 sep=",",
                 dtype=str,
@@ -93,44 +97,41 @@ def load_metadata(filename):
                 header=0,
             )
 
-            if "sample_name" not in load_df.columns:
+            if "sample_name" not in tmp_df.columns:
                 # handle QIIME formatted names
-                load_df = load_df.rename(
-                    columns={
-                        "sample id": "sample_name",
-                        "sample_id": "sample_name",
-                        "sampleid": "sample_name",
-                        "sample-id": "sample_name",
-                        "sample name": "sample_name",
-                        "#SampleID": "sample_name",
-                        "#sampleid": "sample_name",
-                    }
-                )
-            if "sample_name" in list(load_df.columns):
-                logger.info(
-                    "Loaded "
-                    + filename
-                    + " with columns "
-                    + str(load_df.columns)
-                )
-            else:
-                logger.warning(
-                    "Could not find sample_name in "
-                    + filename
-                    + ", check format and try again."
-                    + "valid sample_name equivalents: sample_name,sample name,"
-                    + "sample id,sampleid,sample-id,#SampleID,#sampleid"
-                )
-        if len(load_df) > 0:
+                found_sn = False
+                for s in _SAMPLE_NAME_ALIASES:
+                    if not found_sn:
+                        if s in tmp_df.columns:
+                            found_sn = True
+                            tmp_df["sample_name"] = tmp_df[s]
+                            logger.warning("'sample_name' mapped from: " + s)
+
+        if len(tmp_df) > 0 and "sample_name" in list(tmp_df.columns):
             # remove newlines and tabs from fields
-            load_df.replace(
+            tmp_df.replace(
                 to_replace="[\t\n\r\x0b\x0c]+",
                 value="",
                 regex=True,
                 inplace=True,
             )
             # removing columns with empty values
-            load_df.dropna(axis="columns", how="all", inplace=True)
+            tmp_df.dropna(axis="columns", how="all", inplace=True)
+
+            # set sample_name as index
+            load_df = tmp_df.set_index("sample_name")
+
+            logger.info(
+                "Loaded " + filename + " with columns " + str(load_df.columns)
+            )
+        else:
+            logger.warning(
+                "Could not find sample_name in "
+                + filename
+                + ", check format and try again."
+                + "valid sample_name equivalents: sample_name,sample name,"
+                + "sample id,sampleid,sample-id,#SampleID,#sampleid"
+            )
     else:
         logger.warning(
             "Could not load file "
@@ -486,6 +487,26 @@ def qebil_format(md, null_term="not provided"):
 
     # null value cleanup
     md = md.fillna(null_term)
+
+    # resolve duplicate columns
+    # https://stackoverflow.com/questions/24685012/pandas-
+    # dataframe-renaming-multiple-identically-named-columns
+    cols = pd.Series(md.columns)
+    dupe_cols = md.columns[md.columns.duplicated(keep=False)]
+    if len(dupe_cols) > 0:
+        logger.warning(
+            "Duplicate columns found:"
+            + str(dupe_cols)
+            + " Renaming with suffixed numbers."
+        )
+    for dup in dupe_cols:
+        cols[md.columns.get_loc(dup)] = [
+            dup + "_" + str(d_idx) if d_idx != 0 else dup
+            for d_idx in range(md.columns.get_loc(dup).sum())
+        ]
+    md.columns = cols
+
+    # clean up blanks and null values
     for col in md.columns:
         md[col] = md[col].apply(lambda x: clean_nulls(x))
 
@@ -654,7 +675,7 @@ def scrub_special_chars(input_string, custom_dict={}, sub="_"):
         )
 
     if clean_string != str(input_string):
-        logger.warning(
+        logger.info(
             "String "
             + input_string
             + " contained invalid "
@@ -695,7 +716,7 @@ def check_qebil_restricted_column(col):
             + " prepending with 'user_' but keeping values."
         )
         col = "user_" + col
-
+    # DEBUG: logger.info("Returning column " + col)
     return col
 
 
@@ -725,7 +746,7 @@ def enforce_start_characters(col):
 
     if clean_col != col:
         # TODO: pythonify strings?
-        logger.warning(
+        logger.info(
             "Column "
             + str(col)
             + " contained invalid"
@@ -768,6 +789,9 @@ def clean_nulls(potential_null, supp_dict={}):
         if test_null in NULL_DICT:
             resolved_null = NULL_DICT[test_null]
 
+        # DEBUG: logger.info("potential null is " + str(potential_null))
+        # DEBUG: logger.info("resolved null is " + str(resolved_null))
+
         if resolved_null != potential_null:
             logger.warning(
                 "Cleaned null value "
@@ -785,3 +809,40 @@ def clean_column_name(col):
     return check_qebil_restricted_column(
         enforce_start_characters(scrub_special_chars(col).lower())
     )
+
+
+def subset_metadata(md, max_samples, rand_sample=False):
+    """Subsamples a dataframe for the specified number of samples
+
+    Simple helper function to return a subset of the metadata
+    a random subset based on the number requested
+
+    Parameters
+    ----------
+    metadata: pd.DataFrame
+        pandas Dataframe of meatadata
+    max_samples: int
+        The number of samples to take
+    rand_sample: boolean
+        Whether to perform a random subsample
+
+    Returns
+    -------
+    sample_df
+        subsampled dataframe
+
+    """
+    if isinstance(max_samples, int):
+        if isinstance(rand_sample, bool):
+            if rand_sample:
+                md = md.sample(max_samples)
+            else:
+                md = md.head(max_samples)
+        else:
+            raise ValueError(
+                "Expected boolean, received: " + str(rand_sample)
+            )
+    else:
+        raise ValueError("Expected int, received: " + str(rand_sample))
+
+    return md

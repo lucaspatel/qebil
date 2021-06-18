@@ -6,8 +6,10 @@ from pandas.testing import assert_frame_equal
 
 # This is the class we want to test. So, we need to import it
 from qebil.core import Study
+from qebil.tools.metadata import load_metadata
 
 from qebil.tools.util import setup_output_dir
+
 
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
@@ -107,7 +109,7 @@ class StudyTest(unittest.TestCase):
 
     def test_study_creation_from_remote_valid(self):
         valid_study = Study.from_remote(
-            self.test_study_valid_id, full_details=True, max_samples=1
+            self.test_study_valid_id, full_details=True, max_samples=2
         )
         test_df = pd.read_csv(
             self.test_study_valid_tsv, header=0, sep="\t", dtype=str
@@ -132,7 +134,7 @@ class StudyTest(unittest.TestCase):
             valid_study.metadata.sort_index(axis=1),
             test_df.sort_index(axis=1),
         )
-        self.assertNotEqual(valid_study.ebi_id, self.test_study_valid_id)
+        self.assertEqual(valid_study.ebi_id, self.test_study_valid_id)
         for f in self.test_fields_invalid:
             self.assertFalse(f in valid_study.metadata.columns)
 
@@ -146,16 +148,16 @@ class StudyTest(unittest.TestCase):
 
     def test_populate_sample_info(self):
         test_study = Study.from_remote(
-            self.test_study_valid_id, full_details=True, max_samples=1
+            self.test_study_valid_id, full_details=True, max_samples=2
         )
-        test_df = pd.read_csv(
-            self.test_study_valid_tsv, header=0, sep="\t", dtype=str
-        )
+        test_df = load_metadata(self.test_study_valid_tsv)
+        print(test_study.metadata.columns)
+        print(test_df.columns)
         self.assertEqual(test_study.metadata.shape, test_df.shape)
 
     def test_populate_expt_info_and_preps(self):
         test_study = Study.from_remote(
-            self.test_study_valid_id, full_details=True, max_samples=1
+            self.test_study_valid_id, full_details=True, max_samples=2
         )
         test_study.populate_preps()
         test_df = pd.read_csv(
