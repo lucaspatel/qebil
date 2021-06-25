@@ -112,6 +112,77 @@ def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
             return False
 
 
+def retrieve_aspera_file(
+    ftp_path, filepath, remote_checksum, overwrite=False
+):
+    """Method to retrieve an ftp file and check accuracy
+    of the download. If not overwriting, check the local copy for validity
+    before downloading.
+
+    Parameters
+    ----------
+    ftp_path: string:
+        the ftp url to download from
+    filepath: string
+        the local path to save the file to
+    remote_checksum: string
+        hexadecimal md5 checksum to validate the downlod
+    overwrite : bool
+        whether to overwrite the local copy of the file
+
+    Returns
+    ---------
+    checksum: str or bool
+        returns either the string for the checksum or False
+        if there is an issue with the download or integrity
+
+    """
+    # see if the file exists and make sure it's valid if so
+    local = False
+    if not overwrite:
+        if path.isfile(filepath):
+            checksum = check_download_integrity(filepath, remote_checksum)
+            if checksum:
+                local = True
+                logger.info(
+                    "Valid file found. Skipping download of file: "
+                    + "ftp://"
+                    + ftp_path
+                    + " to "
+                    + filepath
+                )
+                return checksum
+            else:
+                logger.warning(
+                    "Local file found but invalid checksum."
+                    + " Downloading again: "
+                    + "ftp://"
+                    + ftp_path
+                    + " to "
+                    + filepath
+                )
+
+    if not local:
+        # add catch in case there is an issue with the connection
+        try:
+            urlretrieve("ftp://" + ftp_path, filepath)
+            checksum = check_download_integrity(filepath, remote_checksum)
+            return checksum
+        except urllib.error.URLError:  # RequestException:
+            logger.warning(
+                "Issue with urlretrieve for "
+                + "download of file:"
+                + "ftp://"
+                + ftp_path
+                + " to "
+                + filepath
+            )
+            # cleanup file if present
+            if path.isfile(ftp_path):
+                remove(ftp_path)
+            return False
+
+
 def check_download_integrity(filepath, md5_value):
     """Compares the checksum of local and remote files for validation
 
@@ -343,3 +414,104 @@ def detect_qiita_study(metadata):
         return metadata["qiita_study_id"].unique()
     else:
         return False
+
+
+def write_file(filename, contents, mode="w"):
+    """Helper method to write out text files"""
+
+    if mode not in ["w", "a"]:
+        logger.error("Write mode" + mode + " is invalid.")
+    else:
+        out_file = open(filename, mode)
+        out_file.write(contents)
+        out_file.close()
+
+
+def parse_details(xml_dict, null_val="XXEBIXX"):
+    """Method to parse study details from xml dict
+
+    Parameters
+    -----------
+    study_details: dict
+        dict of study details parsed from xml
+
+    Returns
+    ----------
+    desc_dict: dict
+        parsed details
+
+    """
+
+    result_dict = {
+        "abstract": null_val,
+        "description": null_val,
+        "title": null_val,
+        "seq_method": [],
+    }
+
+    parse_dict = xml_dict["STUDY_SET"]["STUDY"]
+    if "DESCRIPTOR" not in parse_dict.keys():
+        logger.warning(
+            "No DESCRIPTOR values found. Using " + null_val + " for values."
+        )
+        return result_dict
+    else:
+        desc_dict = parse_dict["DESCRIPTOR"]
+
+    if len(desc_dict) > 0:
+        if "STUDY_ABSTRACT" in desc_dict.keys():
+            result_dict["abstract"] = desc_dict["STUDY_ABSTRACT"]
+
+        elif "ABSTRACT" in desc_dict.keys():
+            result_dict["abstract"] = desc_dict["ABSTRACT"]
+        else:
+            logger.warning(
+                "No abstract found, using " + null_val + " for abstract"
+            )
+
+        if "STUDY_DESCRIPTION" in desc_dict.keys():
+            result_dict["description"] = desc_dict["STUDY_DESCRIPTION"]
+        elif "DESCRIPTION" in desc_dict.keys():
+            result_dict["description"] = desc_dict["DESCRIPTION"]
+        else:
+            logger.warning(
+                "No description found, using " + null_val + " for description"
+            )
+
+        if "@alias" in parse_dict.keys():
+            alias = parse_dict["@alias"]
+            logger.warning(
+                "Found EBI alias, appending '"
+                + alias
+                + "' to description"
+            )
+            result_dict["description"] += alias
+
+        if "STUDY_TITLE" in desc_dict.keys():
+            result_dict["title"] = desc_dict["STUDY_TITLE"]
+        elif "TITLE" in desc_dict.keys():
+            result_dict["title"] = desc_dict["TITLE"]
+        else:
+            logger.warning("No title found, using " + null_val + " for title")
+
+        for k in result_dict.keys():
+            if result_dict[k] != null_val:
+                result_dict["seq_method"] += scrape_seq_method(
+                    result_dict["description"]
+                )
+
+    return result_dict
+
+
+def scrape_seq_method(study_text):
+    """Method to search text for relevant sequencing methods"""
+    valid_methods = [
+        "16s",
+        "18s",
+        "its1",
+        "its2",
+        "shotgun",
+    ]
+    tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", study_text.lower())]
+    found_methods = [t for meth in valid_methods for t in tokens if meth in t]
+    return found_methods

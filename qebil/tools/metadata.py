@@ -142,7 +142,7 @@ def load_metadata(filename):
     return load_df
 
 
-def format_prep_type(row, sample_name):
+def format_prep_type(row, sample_name, seq_methods=[]):
     """Maps EBI library strategies to Qiita prep types
 
     Method to map  EBI library strategies to Qiita prep types. For amplicon
@@ -167,22 +167,22 @@ def format_prep_type(row, sample_name):
 
     amplicon_list = ["AMPLICON", "OTHER"]
     amplicon_dict = {
-        "16S rRNA": "16S",
-        "16S": "16S",
-        "16S rDNA": "16S",
-        "16S RNA": "16S",
-        "16S DNA": "16S",
-        "16S ": "16S",
-        "ITS": "ITS",
-        "ITS1": "ITS",
-        "ITS2": "ITS",
-        "ITS ": "ITS",
-        "18S rRNA": "18S",
-        "18S rDNA": "18S",
-        "18S": "18S",
-        "18S RNA": "18S",
-        "18S DNA": "18S",
-        "18S ": "18S",
+        "16s rna": "16S",
+        "16s": "16S",
+        "16s rdna": "16S",
+        "16s rna": "16S",
+        "16s dna": "16S",
+        "16s ": "16S",
+        "its": "ITS",
+        "its1": "ITS",
+        "its2": "ITS",
+        "its ": "ITS",
+        "18s rrna": "18S",
+        "18s rdna": "18S",
+        "18s": "18S",
+        "18s rna": "18S",
+        "18s dna": "18S",
+        "18s ": "18S",
     }
     library_strat_to_qebil_dict = {
         "POOLCLONE": "AMBIGUOUS",
@@ -232,17 +232,35 @@ def format_prep_type(row, sample_name):
             )
     else:
         # since this is amplicon data, there should be a target gene,
-        # if not return AMBIGUOUS
+        # if not check the seq_methods, then return AMBIGUOUS
         try:
-            tg = row["target_gene"]
+            tg = row["target_gene"].lower()
             if tg in amplicon_dict.keys():
                 prep_type = amplicon_dict[tg]
         except Exception:
             logger.warning(
                 "target_gene not found for "
                 + str(sample_name)
-                + ". Setting to 'AMBIGUOUS'."
+                + ". Checking study information."
             )
+            if len(seq_methods) == 1:
+                if seq_methods[0] in amplicon_dict.keys():
+                    prep_type = amplicon_dict[seq_methods[0]]
+                    logger.info(
+                        "Found "
+                        + str(seq_methods[0])
+                        + " as only target gene in study"
+                        + " information. Using as prep_type"
+                        + " but user should check and specify"
+                        + " target subfragment."
+                    )
+                else:
+                    logger.warning(
+                        "seq_methods "
+                        + str(seq_methods)
+                        + " found in study information."
+                        + " Setting to 'AMBIGUOUS'."
+                    )
 
     return prep_type
 

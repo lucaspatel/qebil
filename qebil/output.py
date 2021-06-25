@@ -3,7 +3,7 @@ from os import path, remove
 from os.path import join
 
 from qebil.log import logger
-from qebil.tools.util import get_ebi_ids
+from qebil.tools.util import get_ebi_ids, parse_details, write_file
 
 from functools import partial
 
@@ -29,12 +29,9 @@ def update_qebil_status(output_dir, prefix, msg="", overwrite=False):
 
     # Write out status file with message if provided
     if overwrite:
-        open_type = "w"
+        write_file(status_file, msg, "w")
     else:
-        open_type = "a"
-    c_file = open(status_file, open_type)
-    c_file.write(msg)
-    c_file.close()
+        write_file(status_file, msg, "a")
 
 
 def write_config_files(proj_dict, output_dir, prefix):
@@ -80,7 +77,7 @@ def write_config_files(proj_dict, output_dir, prefix):
             update_qebil_status(output_dir, file_prefix, msg)
 
 
-def write_config_file(xml_dict, prefix=""):
+def write_config_file(xml_dict, prefix="", null_val="XXEBIXX"):
     """Writes the files needed for Qiita loading
 
     This method writes out the study_config and study_title
@@ -104,6 +101,9 @@ def write_config_file(xml_dict, prefix=""):
     if prefix != "":
         prefix += "_"
 
+    study_config_file = prefix + "study_config.txt"
+    study_title_file = prefix + "study_title.txt"
+
     # This block of code is specified by Qiita test configuration
     config_string = (
         "[required]\n"
@@ -120,66 +120,22 @@ def write_config_file(xml_dict, prefix=""):
     )
 
     config_string = config_string + "\nreprocess = False"
+
+    # TODO: refactor study details to be parrsed dict from get-go
+    # TODO: refactor further to store and retrieve ids as part of desc_dict
+    desc_dict = parse_details(xml_dict, null_val)
     study_id, proj_id = get_ebi_ids(xml_dict)
 
-    parse_dict = xml_dict["STUDY_SET"]["STUDY"]
-    null_val = "XXEBIXX"
+    abstract = "\nstudy_abstract = " + desc_dict["abstract"]
 
-    title = null_val
-    alias = "\nstudy_alias = " + null_val
-    abstract = "\nstudy_abstract = " + null_val
-    description = "\nstudy_description = " + null_val
+    # setting alias to project ID for Qiita tracking
+    alias = "\nstudy_alias = " + str(proj_id) + "; "
 
-    # setting alias to project ID and ignoring EBI alias unless
-    # no description found
-    logger.info("Project ID is: " + str(proj_id))
-    alias = alias.replace(null_val, str(proj_id) + "; ")
-    description = description.replace(null_val, str(study_id)) + "; "
+    # starting description with study ID
+    description = "\nstudy_description = " + str(study_id) + "; "
 
-    # adding study ID to description
-
-    desc_dict = {}
-    if "DESCRIPTOR" in parse_dict.keys():
-        desc_dict = parse_dict["DESCRIPTOR"]
-    else:
-        logger.warning(
-            "No DESCRIPTOR values found. Using " + null_val + " for values."
-        )
-
-    if len(desc_dict) > 0:
-        if "STUDY_ABSTRACT" in desc_dict.keys():
-            abstract = abstract.replace(null_val, desc_dict["STUDY_ABSTRACT"])
-        elif "ABSTRACT" in desc_dict.keys():
-            abstract = abstract.replace(null_val, desc_dict["ABSTRACT"])
-        else:
-            logger.warning(
-                "No abstract found, using " + null_val + " for abstract"
-            )
-
-        if "STUDY_DESCRIPTION" in desc_dict.keys():
-            description += desc_dict["STUDY_DESCRIPTION"]
-        elif "DESCRIPTION" in desc_dict.keys():
-            description += desc_dict["DESCRIPTION"]
-        else:
-            logger.warning(
-                "No description found, using " + null_val + " for description"
-            )
-
-        if "@alias" in parse_dict.keys():
-            tmp_alias = parse_dict["@alias"]
-            logger.warning(
-                "Found EBI alias, appending '"
-                + tmp_alias
-                + "' for description"
-            )
-            alias += tmp_alias
-
-        if "STUDY_TITLE" in desc_dict.keys():
-            title = title.replace(null_val, desc_dict["STUDY_TITLE"])
-        elif "TITLE" in desc_dict.keys():
-            title = title.replace(null_val, desc_dict["TITLE"])
-        else:
-            logger.warning("No title found, using " + null_val + " for title")
+    # then adding details
+    description += desc_dict["description"]
 
     config_string = (
         config_string
@@ -191,19 +147,11 @@ def write_config_file(xml_dict, prefix=""):
         "%", "%%"
     )  # need to avoid % sign
 
-    title = title.replace("%", "%%")  # need to avoid % sign
-
-    study_config_file = prefix + "study_config.txt"
-    study_title_file = prefix + "study_title.txt"
+    title = desc_dict["title"].replace("%", "%%")  # need to avoid % sign
 
     # Write out files
-    c_file = open(study_config_file, "w")
-    c_file.write(config_string)
-    c_file.close()
-
-    t_file = open(study_title_file, "w")
-    t_file.write(title)
-    t_file.close()
+    write_file(study_config_file, config_string)
+    write_file(study_title_file, title)
 
 
 def write_metadata_files(
@@ -389,7 +337,7 @@ def write_qebil_info_files(
             ]
             prep_df = prep_df.dropna(axis=1, how="all")
             prep_df_list = [
-                prep_df[i : i + max_prep]
+                prep_df[i: i + max_prep]
                 for i in range(0, prep_df.shape[0], max_prep)
             ]
             prep_count = 0
@@ -428,15 +376,18 @@ def write_qebil_info_files(
                     "TOOMANYREADS": {"fp": toomany_fp, "files": []},
                 }
                 for f in prep["run_prefix"]:
-                    f_list = glob.glob(output_dir + f + "*fastq.gz")
+                    f_list = glob.glob(output_dir + str(f) + "*fastq.gz")
                     if len(f_list) == 0:
-                        file_status_dict["MISSING"]["files"].append(f)
-                        logger.warning("fastq file(s) missing for " + f)
+                        file_status_dict["MISSING"]["files"].append(str(f))
+                        logger.warning("fastq file(s) missing for " + str(f))
                     elif len(f_list) == 1:
                         if layout == "SINGLE":
-                            file_status_dict["VALID"]["files"].append(f)
+                            file_status_dict["VALID"]["files"].append(str(f))
                         elif layout == "PAIRED":
-                            logger.warning("fastq file missing for " + f)
+                            logger.warning("fastq file missing for " + str(f))
+                            file_status_dict["MISSING"]["files"].append(
+                                str(f)
+                            )
                             # for f in f_list:
                             # remove(f)
                         else:
@@ -444,24 +395,29 @@ def write_qebil_info_files(
                     elif len(f_list) == 2:
                         if layout == "SINGLE":
                             file_status_dict["TOOMANYREADS"]["files"].append(
-                                f
+                                str(f)
                             )
                             logger.warning(
-                                "Too many reads(" + len(f_list) + ") for " + f
+                                "Too many reads("
+                                + len(f_list)
+                                + ") for "
+                                + str(f)
                             )
                             # for f in f_list:
                             # remove(f)
                         elif layout == "PAIRED":
-                            file_status_dict["VALID"]["files"].append(f)
+                            file_status_dict["VALID"]["files"].append(str(f))
                         else:
                             logger.error("Layout is unexpected: " + layout)
                     else:
-                        file_status_dict["TOOMANYREADS"]["files"].append(f)
+                        file_status_dict["TOOMANYREADS"]["files"].append(
+                            str(f)
+                        )
                         logger.warning(
                             "Too many reads("
                             + str(len(f_list))
                             + ") for "
-                            + f
+                            + str(f)
                             + "with layout "
                             + layout
                             + " Try running again with --correct-index"

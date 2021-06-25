@@ -104,7 +104,7 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                 run_prefix, ebi_dict, output_dir
             )
             raw_reads = md.at[index, "qebil_raw_reads"]
-            print("raw reads after fff:" + str(raw_reads))
+            print("raw reads after download:" + str(raw_reads))
         if not filtered_reads.isnumeric():
             # this value should only be set if filtered
             md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
@@ -144,6 +144,8 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                 md.at[index, "qebil_frac_non_host_reads"] = int(
                     mb_reads
                 ) / int(filtered_reads)
+
+        # TODO: write out metadata after each loop
 
     # update study metadata
     return md

@@ -188,9 +188,15 @@ _project_options = [
         "--human-removal",
         is_flag=True,
         help=(
-            "On-the-fly human read removal. See documentation for settings"
+            "Experimental: On-the-fly human read removal. "
+            + " See documentation for settings"
             + " and information for other organisms."
         ),
+    ),
+    click.option(
+        "--aspera",
+        is_flag=True,
+        help=("Experimental: use aspera for download instead of ftp"),
     ),
     click.option(
         "--qiita/--raw",
@@ -266,6 +272,7 @@ def fetch_project(
     prep_max,
     download_fastq,
     human_removal,
+    aspera,
     cpus,
     keep_files,
     source,

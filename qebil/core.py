@@ -8,7 +8,7 @@ from qebil.tools.metadata import (
 )
 from qebil.log import logger
 from qebil.fetch import fetch_ebi_info, fetch_ebi_metadata
-from qebil.tools.util import get_ebi_ids
+from qebil.tools.util import get_ebi_ids, parse_details
 
 
 _QEBIL_PREP_INFO_COLUMNS = [
@@ -23,7 +23,6 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "library_source",
     "library_layout",
     "library_selection",
-    "fastq_ftp",
     "ena_checklist",
     "ena_spot_count",
     "ena_base_count",
@@ -645,9 +644,17 @@ class Study:
                 )
                 md["qebil_prep_file"] = layout + "_Genome_Isolate_0"
             else:
+                # frequently the prep_type is returning as ambiguous
+                # so for amplicon data if only one target gene out
+                # of 16S, 18S, or ITS1/2 appears then set this as the
+                # prep_type and target_gene. To enable this, we'll
+                # parse then tokenize the abstract and description
+                seq_methods = parse_details(self.details)["seq_method"]
+
                 for index, row in md.iterrows():
                     sample_name = index
-                    prep_type = format_prep_type(row, index)
+                    prep_type = format_prep_type(row, index, seq_methods)
+
                     layout = row["library_layout"]
                     logger.info("Layout is: " + str(layout))
                     if prep_type not in sample_count_dict:
