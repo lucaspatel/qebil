@@ -161,6 +161,7 @@ def write_metadata_files(
     suffix="",
     output_qiita=True,
     prep_max=250,
+    fastq_prefix=".ebi",
 ):
     """Helper function for writing out metadata
 
@@ -180,8 +181,12 @@ def write_metadata_files(
         prefix to prepend to output info files
     suffix: string
         suffix to append to output info files
-    max_prep: int
+    output_qiita: bool
+        whether to write out Qiita-related files
+    prep_max: int
         max number of samples to write into any prep info file
+    fastq_prefix: string
+        the prefix before the .fastq.gz extension to use for checking files
 
     Returns
     -------
@@ -230,6 +235,7 @@ def write_qebil_info_files(
     file_suffix="",
     max_prep=250,
     update_status=True,
+    fastq_prefix=".ebi",
 ):
     """Writes out the prep and sample information files
 
@@ -266,6 +272,8 @@ def write_qebil_info_files(
         suffix to append to output info files
     max_prep: int
         max number of samples to write into any prep info file
+    fastq_prefix: string
+        the prefix before the .fastq.gz extension to use for checking files
 
     Returns
     -------
@@ -376,7 +384,9 @@ def write_qebil_info_files(
                     "TOOMANYREADS": {"fp": toomany_fp, "files": []},
                 }
                 for f in prep["run_prefix"]:
-                    f_list = glob.glob(output_dir + str(f) + "*fastq.gz")
+                    f_list = glob.glob(
+                        output_dir + str(f) + "*" + fastq_prefix + ".fastq.gz"
+                    )
                     if len(f_list) == 0:
                         file_status_dict["MISSING"]["files"].append(str(f))
                         logger.warning("fastq file(s) missing for " + str(f))

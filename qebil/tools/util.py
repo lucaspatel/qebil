@@ -403,7 +403,7 @@ def setup_output_dir(output_dir):
         output_dir += "/"
 
     if not path.exists(output_dir):
-        makedirs(output_dir)
+        makedirs(output_dir, exist_ok=True)  # exist_ok shouldn't be an issue?
 
     return output_dir
 
@@ -481,9 +481,7 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
         if "@alias" in parse_dict.keys():
             alias = parse_dict["@alias"]
             logger.warning(
-                "Found EBI alias, appending '"
-                + alias
-                + "' to description"
+                "Found EBI alias, appending '" + alias + "' to description"
             )
             result_dict["description"] += alias
 

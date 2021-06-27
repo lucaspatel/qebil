@@ -10,9 +10,12 @@ from qebil.tools.fastq import (
     unpack_fastq_ftp,
     check_valid_fastq,
 )
+from qebil.output import write_metadata_files
 
 
-def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
+def deplete_on_the_fly(
+    study, cpus=4, output_dir="./", keep_files=True, prefix="", max_prep=250
+):
     """Processes a study sample-by-sample to filter and deplete human reads
 
     For human studies, it is convenient to on-the-fly host deplete for
@@ -104,7 +107,15 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                 run_prefix, ebi_dict, output_dir
             )
             raw_reads = md.at[index, "qebil_raw_reads"]
-            print("raw reads after download:" + str(raw_reads))
+            logger.info("raw reads after download:" + str(raw_reads))
+            # need to update metadata to not lose progress
+            study.metadata = md
+            write_metadata_files(
+                {study.proj_id: study},
+                output_dir,
+                prefix,
+                prep_max=max_prep,
+            )
         if not filtered_reads.isnumeric():
             # this value should only be set if filtered
             md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
@@ -114,10 +125,19 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
             md.at[index, "qebil_frac_reads_passing_filter"] = int(
                 filtered_reads
             ) / int(raw_reads)
-            print(
+            logger.info(
                 "% suriving filter: "
                 + str(md.at[index, "qebil_frac_reads_passing_filter"])
             )
+            # need to update metadata to not lose progress
+            study.metadata = md
+            write_metadata_files(
+                {study.proj_id: study},
+                output_dir,
+                prefix,
+                prep_max=max_prep,
+            )
+
         # check to make sure the data can be host_depleted
         if prep_file_type not in ["Metagenomic", "Metatranscriptomic"]:
             logger.warning(
@@ -135,7 +155,7 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                     filtered_reads,
                     output_dir,
                     cpus,
-                    keep_files,
+                    keep_files,  # note need to see how this behaves
                 )
                 filtered_reads = str(
                     md.at[index, "qebil_quality_filtered_reads"]
@@ -145,9 +165,15 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
                     mb_reads
                 ) / int(filtered_reads)
 
-        # TODO: write out metadata after each loop
+                # need to update metadata to not lose progress
+                study.metadata = md
+                write_metadata_files(
+                    {study.proj_id: study},
+                    output_dir,
+                    prefix,
+                    prep_max=max_prep,
+                )
 
-    # update study metadata
     return md
 
 
