@@ -1,13 +1,17 @@
 import hashlib
 from os import makedirs, path, remove
 import pandas as pd
+import numpy as np
 import PyPDF2
 import re
 import requests
+from subprocess import Popen
 
 # from requests.exceptions import RequestException
 import urllib
 from urllib.request import urlretrieve
+
+from qebil.tools.fastq import get_fastq_head, fastq_to_fasta
 
 from qebil.log import logger
 
@@ -513,3 +517,83 @@ def scrape_seq_method(study_text):
     tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", study_text.lower())]
     found_methods = [t for meth in valid_methods for t in tokens if meth in t]
     return found_methods
+
+
+def blast_for_type(fastq_file, db_dict={}):
+    """Method to attempt to resolve prep type via blast
+
+
+    Parameters
+    -----------
+
+
+    Returns
+    ----------
+
+    """
+    if len(db_dict) == 0:  # assume we're on barnacle
+        barnacle_fp = (
+            "/panfs/panfs1.ucsd.edu/panscratch/qiita/qebil/databases/blast/"
+        )
+        db_dict = {
+            "16S": barnacle_fp + "16S_ribosomal_RNA",
+            "18S": barnacle_fp + "18S_fungal_sequences",
+            "ITS_a": barnacle_fp + "ITS_eukaryote_sequences",
+            "ITS_b": barnacle_fp + "ITS_RefSeq_Fungi",
+        }
+
+    # take the head of the fastq file to query
+    fasta_file = fastq_to_fasta(get_fastq_head(fastq_file))
+
+    # now query via blastn to find best match
+    match = "AMBIGUOUS"
+    min_eval = 1
+
+    for db_type in db_dict.keys():
+        db = db_dict[db_type]
+        tmp_res = "./tmp_" + db_type + ".tsv"
+        blastn_args = [
+            "blastn",
+            "-query",
+            fasta_file,
+            "-task",
+            "blastn",
+            "-db",
+            db,
+            "-outfmt",
+            "6",
+            "-max_hsps",
+            "1",
+            "-max_target_seqs",
+            "5",
+            "-num_threads",
+            "4",
+            "-out",
+            tmp_res,
+        ]
+        blastn_string = " ".join(blastn_args)
+        print(blastn_string)
+        blastn_ps = Popen(blastn_args)
+        blastn_ps.wait()
+
+        if blastn_ps.returncode == 0:
+            mean_eval = np.mean(
+                list(pd.read_csv(tmp_res, sep="\t", header=None)[10])
+            )
+            print(db_type + " " + str(mean_eval))
+            if mean_eval < min_eval:
+                match = db_type[:3]
+                min_eval = mean_eval
+        else:
+            logger.warning(
+                "Error running blastn with parameters: " + blastn_string
+            )
+
+        # clean up temp files
+        remove(tmp_res)
+
+    logger.info("blastn complete. Best match is :" + match)
+    # clean up fasta
+    remove(fasta_file)
+
+    return match

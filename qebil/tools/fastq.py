@@ -262,3 +262,82 @@ def remove_index_read_file(file_list):
             move(f, f.replace("_R2.", "_R1."))
         elif "_R3." in f:
             move(f, f.replace("_R3.", "_R2."))
+
+
+def get_fastq_head(fastq_file, head_fn="", head_size=100):
+    """Helper method to get head of fastq file
+
+    Parameters
+    -----------
+    run_prefix: string
+        prefix prepended to local files
+    ftp_dict: dict
+        dictionary of remote ftp files and checksums
+
+    Returns
+    -----------
+
+    """
+    if head_fn == "":
+        head_fn = fastq_file.replace(".fastq.gz", ".head.fastq.gz")
+
+    if path.isfile(fastq_file):
+        fqtools_args = [
+            "fqtools",
+            "head",
+            "-n",
+            str(head_size),
+            "-o",
+            head_fn.replace('.fastq.gz',''), # .fastq.gz auto-added
+            fastq_file,
+        ]
+        fqtools_ps = Popen(fqtools_args)
+        fqtools_ps.wait()
+
+        if fqtools_ps.returncode != 0:
+            logger.warning(
+                "failed to get head of "
+                + fastq_file
+                + ". Check format and filesize."
+            )
+            head_fn = "error"
+    else:
+        logger.warning("Could not find fastq file: " + fastq_file)
+        head_fn = "error"
+
+    return head_fn
+
+
+def fastq_to_fasta(fastq_file, fasta_filename=""):
+    """Helper method to convert fastq file to fasta file"""
+    if fasta_filename == "":
+        fasta_filename = fastq_file.replace(".fastq.gz", ".fasta")
+
+    if path.isfile(fastq_file):
+        fqtools_args = [
+            "fqtools",
+            "-F",
+            "F",
+            "fasta",
+            "-o",
+            fasta_filename.replace('.fasta',''), # .fasta auto-added
+            fastq_file]
+        fqtools_ps = Popen(fqtools_args)
+        fqtools_ps.wait()
+
+        if fqtools_ps.returncode != 0:
+            logger.warning(
+                "failed to convert "
+                + fastq_file
+                + " to .fasta; check format and filesize."
+            )
+            fasta_filename = "error"
+    else:
+        logger.warning(
+            "Could not find fastq file: "
+            + fastq_file
+            + " to convert to .fasta"
+        )
+        fasta_filename = "error"
+
+    return fasta_filename

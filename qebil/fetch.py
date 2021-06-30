@@ -7,9 +7,14 @@ from qebil.log import logger
 from qebil.tools.fastq import (
     unpack_fastq_ftp,
     get_read_count,
-    remove_index_read_file,
+    remove_index_read_file
 )
-from qebil.tools.util import retrieve_ftp_file, retrieve_aspera_file
+
+from qebil.tools.util import (
+    retrieve_ftp_file,
+    retrieve_aspera_file,
+    blast_for_type
+)
 
 
 def fetch_ebi_info(accession):
@@ -393,6 +398,38 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
                         + str(row["qebil_raw_reads"])
                         + " reads."
                     )
+                    # adding loop to try to resolve ambiguous hits
+                    # could be improved, but first stab at it
+                    strategy = row["library_strategy"]
+                    prep_type = row["qebil_prep_file"].split("_")[1]
+                    if (
+                        strategy in ["AMPLICON", "OTHER"]
+                        and prep_type == "AMBIGUOUS"
+                    ):
+                        logger.warning(
+                            "Attempting to resolve AMBIGUOUS"
+                            + " assignment by blasting"
+                        )
+                        if (
+                            len(ebi_dict) <= 2
+                        ):  # for single/paired data, take R1. If 3, take R2
+                            local_fq_path = (
+                                output_dir
+                                + "/"
+                                + run_prefix
+                                + ".R1.ebi.fastq.gz"
+                            )
+                        elif len(ebi_dict) == 3:
+                            local_fq_path = (
+                                output_dir
+                                + "/"
+                                + run_prefix
+                                + ".R2.ebi.fastq.gz"
+                            )
+                        blast_type = blast_for_type(local_fq_path)
+                        row["qebil_prep_file"] = row[
+                            "qebil_prep_file"
+                        ].replace(prep_type, blast_type)
         # even if it fails, we'll need to return the row
         row_list.append(new_row)
 
