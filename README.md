@@ -63,7 +63,7 @@ After that, clone the GitHub repository, and pip install:
 ```
 git clone https://github.com/ucsd-cmi/qebil
 
-env create -n qebil --file qebil/qebil_env.yml
+conda env create -n qebil --file qebil/qebil_env.yml
 
 pip install qebil 
 ```
