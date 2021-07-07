@@ -5,13 +5,10 @@ import numpy as np
 import PyPDF2
 import re
 import requests
-from subprocess import Popen
-
-# from requests.exceptions import RequestException
+from shutil import move
 import urllib
-from urllib.request import urlretrieve
 
-from qebil.tools.fastq import get_fastq_head, fastq_to_fasta
+from qebil.tools.fastq import get_read_length
 
 from qebil.log import logger
 
@@ -47,152 +44,12 @@ def load_project_file(filepath):
     return add_list
 
 
-def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
-    """Method to retrieve an ftp file and check accuracy
-    of the download. If not overwriting, check the local copy for validity
-    before downloading.
+def compare_checksum(filepath, md5_value):
+    """Compares the expected and actual checksum of the file
 
-    Parameters
-    ----------
-    ftp_path: string:
-        the ftp url to download from
-    filepath: string
-        the local path to save the file to
-    remote_checksum: string
-        hexadecimal md5 checksum to validate the downlod
-    overwrite : bool
-        whether to overwrite the local copy of the file
-
-    Returns
-    ---------
-    checksum: str or bool
-        returns either the string for the checksum or False
-        if there is an issue with the download or integrity
-
-    """
-    # see if the file exists and make sure it's valid if so
-    local = False
-    if not overwrite:
-        if path.isfile(filepath):
-            checksum = check_download_integrity(filepath, remote_checksum)
-            if checksum:
-                local = True
-                logger.info(
-                    "Valid file found. Skipping download of file: "
-                    + "ftp://"
-                    + ftp_path
-                    + " to "
-                    + filepath
-                )
-                return checksum
-            else:
-                logger.warning(
-                    "Local file found but invalid checksum."
-                    + " Downloading again: "
-                    + "ftp://"
-                    + ftp_path
-                    + " to "
-                    + filepath
-                )
-
-    if not local:
-        # add catch in case there is an issue with the connection
-        try:
-            urlretrieve("ftp://" + ftp_path, filepath)
-            checksum = check_download_integrity(filepath, remote_checksum)
-            return checksum
-        except urllib.error.URLError:  # RequestException:
-            logger.warning(
-                "Issue with urlretrieve for "
-                + "download of file:"
-                + "ftp://"
-                + ftp_path
-                + " to "
-                + filepath
-            )
-            # cleanup file if present
-            if path.isfile(ftp_path):
-                remove(ftp_path)
-            return False
-
-
-def retrieve_aspera_file(
-    ftp_path, filepath, remote_checksum, overwrite=False
-):
-    """Method to retrieve an ftp file and check accuracy
-    of the download. If not overwriting, check the local copy for validity
-    before downloading.
-
-    Parameters
-    ----------
-    ftp_path: string:
-        the ftp url to download from
-    filepath: string
-        the local path to save the file to
-    remote_checksum: string
-        hexadecimal md5 checksum to validate the downlod
-    overwrite : bool
-        whether to overwrite the local copy of the file
-
-    Returns
-    ---------
-    checksum: str or bool
-        returns either the string for the checksum or False
-        if there is an issue with the download or integrity
-
-    """
-    # see if the file exists and make sure it's valid if so
-    local = False
-    if not overwrite:
-        if path.isfile(filepath):
-            checksum = check_download_integrity(filepath, remote_checksum)
-            if checksum:
-                local = True
-                logger.info(
-                    "Valid file found. Skipping download of file: "
-                    + "ftp://"
-                    + ftp_path
-                    + " to "
-                    + filepath
-                )
-                return checksum
-            else:
-                logger.warning(
-                    "Local file found but invalid checksum."
-                    + " Downloading again: "
-                    + "ftp://"
-                    + ftp_path
-                    + " to "
-                    + filepath
-                )
-
-    if not local:
-        # add catch in case there is an issue with the connection
-        try:
-            urlretrieve("ftp://" + ftp_path, filepath)
-            checksum = check_download_integrity(filepath, remote_checksum)
-            return checksum
-        except urllib.error.URLError:  # RequestException:
-            logger.warning(
-                "Issue with urlretrieve for "
-                + "download of file:"
-                + "ftp://"
-                + ftp_path
-                + " to "
-                + filepath
-            )
-            # cleanup file if present
-            if path.isfile(ftp_path):
-                remove(ftp_path)
-            return False
-
-
-def check_download_integrity(filepath, md5_value):
-    """Compares the checksum of local and remote files for validation
-
-    This function compares the expected md5 check sum based on the
-    remote file information with the md5 checksum from the specified
-    locatl file. Returns False if they do not match or the checksum
+    This function compares the expected md5 checksum with the md5
+    checksum from the specified local file.
+    Returns False if they do not match or the checksum
     value if they do.
 
     Parameters
@@ -420,17 +277,6 @@ def detect_qiita_study(metadata):
         return False
 
 
-def write_file(filename, contents, mode="w"):
-    """Helper method to write out text files"""
-
-    if mode not in ["w", "a"]:
-        logger.error("Write mode" + mode + " is invalid.")
-    else:
-        out_file = open(filename, mode)
-        out_file.write(contents)
-        out_file.close()
-
-
 def parse_details(xml_dict, null_val="XXEBIXX"):
     """Method to parse study details from xml dict
 
@@ -487,7 +333,10 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
             logger.warning(
                 "Found EBI alias, appending '" + alias + "' to description"
             )
-            result_dict["description"] += alias
+            if result_dict["description"] == null_val:
+                result_dict["description"] = alias
+            else:
+                result_dict["description"] += alias
 
         if "STUDY_TITLE" in desc_dict.keys():
             result_dict["title"] = desc_dict["STUDY_TITLE"]
@@ -519,81 +368,121 @@ def scrape_seq_method(study_text):
     return found_methods
 
 
-def blast_for_type(fastq_file, db_dict={}):
-    """Method to attempt to resolve prep type via blast
+def unpack_fastq_ftp(fastq_ftp, fastq_md5, sep=";"):
+    """Unpacks the ftp and md5 field from EBI metadata
 
+    Takes paired set of ebi-format fastq_ftp and fastq_md5
+    string values and parses them into a dictionary to be used for
+    downloading and using a checksum to validate the downloads
 
     Parameters
-    -----------
-
+    ----------
+    fastq_ftp: string
+        string of semicolon separated ftp filepaths
+    fastq_md5: string
+        string of semicolon separated md5 checksums
 
     Returns
     ----------
+    remote_dict: dict
+        dict of paired ftp filepaths and md5 checksums
+    """
+    remote_dict = {}
+    ftp_list = fastq_ftp.split(sep)
+    logger.info(ftp_list)
+    md5_list = fastq_md5.split(sep)
+
+    if len(ftp_list) == 0:
+        error_msg = (
+            "No ftp files present. Check study details"
+            + " as access may be restricted"
+        )
+        logger.warning(error_msg)
+    else:
+        read_counter = 0
+        while read_counter < len(ftp_list):
+            read_dict = {}
+            read_dict["ftp"] = ftp_list[read_counter]
+            read_dict["md5"] = md5_list[read_counter]
+            read_counter += 1
+            remote_dict["read_" + str(read_counter)] = read_dict
+
+    return remote_dict
+
+
+def remove_index_read_file(fastq_dict, layout):
+    """Simple method to quickly remove and rename files to
+    handle samples with index files
+
+    Parameters
+    ----------
+    file_prefix: string
+        file_prefix to glob
+
+    Returns
+    ----------
+    None
 
     """
-    if len(db_dict) == 0:  # assume we're on barnacle
-        barnacle_fp = (
-            "/panfs/panfs1.ucsd.edu/panscratch/qiita/qebil/databases/blast/"
+    new_fastq_dict = fastq_dict
+    file_prefix = (
+        fastq_dict["read1"].split("/")[-1].replace(".R1.ebi.fastq.gz", "")
+    )
+    if layout.lower() == "single":
+        expected_files = 1
+    elif layout.lower() == "paired":
+        expected_files = 2
+    else:
+        logger.warning(
+            "layout: "
+            + str(layout)
+            + " not valid for removing index read file."
         )
-        db_dict = {
-            "16S": barnacle_fp + "16S_ribosomal_RNA",
-            "18S": barnacle_fp + "18S_fungal_sequences",
-            "ITS_a": barnacle_fp + "ITS_eukaryote_sequences",
-            "ITS_b": barnacle_fp + "ITS_RefSeq_Fungi",
-        }
 
-    # take the head of the fastq file to query
-    fasta_file = fastq_to_fasta(get_fastq_head(fastq_file))
+    if len(fastq_dict) == expected_files:
+        logger.info(
+            "Expected file count matches found file count for prefix "
+            + file_prefix
+            + ". Skipping index read removal."
+        )
+    elif len(fastq_dict) <= 3:
+        read_length_dict = {}
+        for f in fastq_dict.keys():
+            read_length_dict[f] = get_read_length(fastq_dict[f])
 
-    # now query via blastn to find best match
-    match = "AMBIGUOUS"
-    min_eval = 1
-
-    for db_type in db_dict.keys():
-        db = db_dict[db_type]
-        tmp_res = "./tmp_" + db_type + ".tsv"
-        blastn_args = [
-            "blastn",
-            "-query",
-            fasta_file,
-            "-task",
-            "blastn",
-            "-db",
-            db,
-            "-outfmt",
-            "6",
-            "-max_hsps",
-            "1",
-            "-max_target_seqs",
-            "5",
-            "-num_threads",
-            "4",
-            "-out",
-            tmp_res,
-        ]
-        blastn_string = " ".join(blastn_args)
-        print(blastn_string)
-        blastn_ps = Popen(blastn_args)
-        blastn_ps.wait()
-
-        if blastn_ps.returncode == 0:
-            mean_eval = np.mean(
-                list(pd.read_csv(tmp_res, sep="\t", header=None)[10])
-            )
-            print(db_type + " " + str(mean_eval))
-            if mean_eval < min_eval:
-                match = db_type[:3]
-                min_eval = mean_eval
-        else:
+        read_lengths = list(read_length_dict.values())
+        if int(np.min(read_lengths)) >= int(np.mean(read_lengths)) / 2:
             logger.warning(
-                "Error running blastn with parameters: " + blastn_string
+                "Minimum and mean read lengths are less than 2-fold different."
+                + " Could not identify index read file for"
+                + file_prefix
             )
+        else:
+            index_file = min(read_length_dict, key=read_length_dict.get)
+            logger.info(
+                index_file
+                + " identified as index for "
+                + file_prefix
+                + " Removing and renaming other file(s)."
+            )
+            remove(fastq_dict[index_file])
+            index_read_num = index_file[-1]
+            if int(index_read_num) == 1:
+                # typically read1 is expected to be the index read if present
+                move(fastq_dict["read2"], fastq_dict[index_file])
+                new_fastq_dict["read1"] = fastq_dict[index_file]
+                if "read3" in fastq_dict.keys():
+                    move(fastq_dict["read3"], fastq_dict["read2"])
+                    del new_fastq_dict["read3"]
+            elif "read3" in fastq_dict.keys():
+                # if read2 is removed and there were only two, no action
+                # otherwise move read3 to read 2
+                move(fastq_dict["read3"], fastq_dict["read2"])
+                del new_fastq_dict["read3"]
+    else:
+        logger.warning(
+            "Removing index read files not implemented for >3 reads."
+        )
+        # TODO: handle samples with 4 reads?
 
-        # clean up temp files
-        remove(tmp_res)
-
-    logger.info("blastn complete. Best match is :" + match)
-    # clean up fasta
-    remove(fasta_file)
-
-    return match
+    return new_fastq_dict

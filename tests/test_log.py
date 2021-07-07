@@ -4,7 +4,6 @@ from os import path, remove
 from qebil.log import (
     setup_log,
     setup_logging,
-    host_log_adapter,
     get_timestamp,
 )
 import logging
@@ -69,17 +68,17 @@ class TestSetupLogging(unittest.TestCase):
         """
         level_list = ["DEBUG", "INFO", "WARNING"]
 
-        for l in level_list:
-            test_path = _TEST_OUTPUT_DIR + l.lower() + ".log"
+        for level in level_list:
+            test_path = _TEST_OUTPUT_DIR + '/'+ level.lower() + ".log"
 
             if path.isfile(test_path):
                 remove(test_path)
 
-            setup_logging(test_path, l)
+            setup_logging(test_path, level)
             from qebil.log import logger
 
-            logger.error(l.lower())
-            test_log_expected_contents = l.lower() + "\n"
+            logger.error(level.lower())
+            test_log_expected_contents = level.lower() + "\n"
 
             # need to get timestamp format to update in string to compare
             test_log_file = open(test_path, "r")

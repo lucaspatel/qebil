@@ -1,3 +1,12 @@
+import glob
+import numpy as np
+from os import path, remove
+import pandas as pd
+from pandas.testing import assert_frame_equal
+import unittest
+
+from qebil.tools.util import setup_output_dir
+
 from qebil.tools.metadata import (
     load_metadata,
     format_prep_type,
@@ -11,13 +20,6 @@ from qebil.tools.metadata import (
     detect_merger_column,
     merge_metadata,
 )
-import unittest
-import numpy as np
-import pandas as pd
-from pandas.testing import assert_frame_equal
-from os import path
-import glob
-from qebil.tools.util import setup_output_dir
 
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
@@ -111,14 +113,6 @@ class metadataTest(unittest.TestCase):
         assert_frame_equal(expected_df, qebil_csv_df)
 
     def test_format_prep_type(self):
-        test_dict_1 = {
-            "sample_name": ["test1", "test2"],
-            "library_strategy": ["test3", "test4"],
-            "target_gene": ["test5", "test6"],
-        }
-
-        test_df_1 = pd.DataFrame(test_dict_1)
-
         test_ambig_dict = {"POOLCLONE": "AMBIGUOUS", "test": "AMBIGUOUS"}
         test_genome_dict = {
             "CLONE": "Genome Isolate",
@@ -135,6 +129,13 @@ class metadataTest(unittest.TestCase):
             "RNA-Seq": "Metatranscriptomic",
             "miRNA-Seq": "Metatranscriptomic",
             "ncRNA-Seq": "Metatranscriptomic",
+        }
+        """ Code unused, # TODO: determine why and add tests?
+        test_df_1 = pd.DataFrame(test_dict_1)
+        test_dict_1 = {
+            "sample_name": ["test1", "test2"],
+            "library_strategy": ["test3", "test4"],
+            "target_gene": ["test5", "test6"],
         }
         test_amplicon_dict = {
             "16S rRNA": "16S",
@@ -154,6 +155,7 @@ class metadataTest(unittest.TestCase):
             "18S DNA": "18S",
             "18S ": "18S",
         }
+        """
         for k in test_ambig_dict.keys():
             test_df = pd.DataFrame(
                 {
@@ -272,8 +274,7 @@ class metadataTest(unittest.TestCase):
     def test_set_criteria(self):
         valid_list_lower = ["test1", "test2"]
         valid_list_upper = ["TEST1", "TEST2"]
-        invalid_list_numeric = 1
-        invalid_list_not = "test0"
+        
 
         test_selection_dict = set_criteria(valid_list_lower, valid_list_upper)
         self.assertEqual(
@@ -281,7 +282,9 @@ class metadataTest(unittest.TestCase):
             test_selection_dict["instrument_platform"],
         )
 
-        # TODO: fix these tests to return exceptions
+        # TODO: add these tests to return exceptions
+        # invalid_list_numeric = 1
+        # invalid_list_not = "test0"
         # self.assertRaises(set_criteria(invalid_list_numeric))
         # self.assertRaises(set_criteria(invalid_list_not))
 
@@ -319,7 +322,7 @@ class metadataTest(unittest.TestCase):
             reserved_word_lower
         )
         resolved_word_upper = check_qebil_restricted_column(
-            reserved_word_lower
+            reserved_word_upper
         )
         self.assertEqual(resolved_word_lower, "user_key")
         self.assertEqual(resolved_word_upper, "user_key")
@@ -342,12 +345,13 @@ class metadataTest(unittest.TestCase):
             "NULL",
         ]
         not_on_null_list = ["nil", "nada"]
-        test_supplement_dict = {"nada": "none", "NADA": "none"}
+        # test_supplement_dict = {"nada": "none", "NADA": "none"}
 
         for null in not_on_null_list:
             print(null)
             self.assertEqual(clean_nulls(null), null)
             """ Had to comment this out, line above would fail otherwise?
+            # TODO: debug this test
             if null in test_supplement_dict.keys():
                 self.assertEqual(
                     clean_nulls(null, test_supplement_dict), "none"

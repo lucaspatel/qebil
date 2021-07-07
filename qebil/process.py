@@ -7,11 +7,10 @@ from qebil.log import logger
 from qebil.fetch import fetch_fastq_files
 from qebil.tools.fastq import (
     get_read_count,
-    unpack_fastq_ftp,
     check_valid_fastq,
 )
 from qebil.output import write_metadata_files
-
+from qebil.tools.util import unpack_fastq_ftp
 
 def deplete_on_the_fly(
     study, cpus=4, output_dir="./", keep_files=True, prefix="", max_prep=250
@@ -55,6 +54,7 @@ def deplete_on_the_fly(
     for index in md.index:
         run_prefix = md.at[index, "run_prefix"]
         model = md.at[index, "instrument_model"]
+        layout = md.at[index, "library_layout"]
         try:
             raw_reads = str(md.at[index, "qebil_raw_reads"])
             logger.info(
@@ -96,15 +96,15 @@ def deplete_on_the_fly(
             )
             mb_reads = "not determined"
 
-        prep_file_type = md.at[index, "qebil_prep_file"].split("_")[0]
+        prep_file_type = md.at[index, "qebil_prep_file"].split("_")[1]
         ebi_dict = unpack_fastq_ftp(
             md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
         )
-
+        
         if not raw_reads.isnumeric():
             # this value should only be set if downloaded
             md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
-                run_prefix, ebi_dict, output_dir
+                run_prefix, ebi_dict, output_dir, layout
             )
             raw_reads = md.at[index, "qebil_raw_reads"]
             logger.info("raw reads after download:" + str(raw_reads))

@@ -3,7 +3,7 @@ from os import path, remove
 from os.path import join
 
 from qebil.log import logger
-from qebil.tools.util import get_ebi_ids, parse_details, write_file
+from qebil.tools.util import get_ebi_ids, parse_details
 
 from functools import partial
 
@@ -121,7 +121,7 @@ def write_config_file(xml_dict, prefix="", null_val="XXEBIXX"):
 
     config_string = config_string + "\nreprocess = False"
 
-    # TODO: refactor study details to be parrsed dict from get-go
+    # TODO: refactor study details to be parsed dict from get-go
     # TODO: refactor further to store and retrieve ids as part of desc_dict
     desc_dict = parse_details(xml_dict, null_val)
     study_id, proj_id = get_ebi_ids(xml_dict)
@@ -284,6 +284,8 @@ def write_qebil_info_files(
     sample_info_filename = prefix + "_sample_info" + file_suffix + ".tsv"
     prep_file_suffix = file_suffix + ".tsv"
     valid_prep = False  # flag to enable writing of .qebil_status file
+    blasted_samples = []
+    analytical_notes = ""
 
     final_df = study.metadata
     prep_info_columns = study.prep_columns
@@ -338,6 +340,12 @@ def write_qebil_info_files(
                     # will throw warning, but okay with current pandas
                     if min_prep not in prep_df.columns:
                         prep_df[min_prep] = "XXEBIXX"
+                        if min_prep == "target_gene":
+                            # now that we're blasting to determine type,
+                            # add note to this effect since we can only
+                            # be in this loop if the type a specific
+                            # amplicon prep despite not having a target_gene
+                            blasted_samples += list(prep_df["run_prefix"])
 
             # now write out the prep info files
             prep_df = prep_df[
@@ -491,3 +499,31 @@ def write_qebil_info_files(
                                 index_label="sample_name",
                             )
                 prep_count += 1
+
+                # add analytic notes if needed
+                if len(blasted_samples) > 0:
+                    analytical_notes += (
+                        "The files with the following "
+                        + " run_prefix were blasted to determine type"
+                        + " due to missing target_gene information:"
+                        + str(blasted_samples)
+                    )
+
+                # if there are analytical notes write them
+                if len(analytical_notes) > 0:
+                    write_file(
+                        output_dir + file_prefix + "_analytical_notes.txt",
+                        analytical_notes,
+                        "a",
+                    )
+
+
+def write_file(filename, contents, mode="w"):
+    """Helper method to write out text files"""
+
+    if mode not in ["w", "a"]:
+        logger.error("Write mode" + mode + " is invalid.")
+    else:
+        out_file = open(filename, mode)
+        out_file.write(contents)
+        out_file.close()

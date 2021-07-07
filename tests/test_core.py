@@ -8,9 +8,6 @@ from pandas.testing import assert_frame_equal
 from qebil.core import Study
 from qebil.tools.metadata import load_metadata
 
-from qebil.tools.util import setup_output_dir
-
-
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
 _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")

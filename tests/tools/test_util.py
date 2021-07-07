@@ -1,16 +1,21 @@
-from qebil.tools.util import (
-    load_project_file,
-    retrieve_ftp_file,
-    check_download_integrity,
-    scrape_ebi_ids,
-    parse_document,
-)
-import unittest
+from collections import OrderedDict
 from os import path, remove
-from shutil import copy
-import glob
+import pandas as pd
+import unittest
 
-from qebil.tools.util import setup_output_dir
+from qebil.tools.util import (
+    
+    compare_checksum,
+    detect_qiita_study,
+    get_ebi_ids,
+    load_project_file,
+    parse_document,
+    parse_details,
+    scrape_ebi_ids,
+    scrape_seq_method,
+    setup_output_dir
+)
+
 
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
@@ -18,7 +23,295 @@ _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "..", "support_files")
 
 _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "..", "test_output/")
 
-setup_output_dir(_TEST_OUTPUT_DIR)
+_CLEANUP_LIST = []
+
+_TEST_STUDY_DICT = OrderedDict(
+    [
+        (
+            "STUDY_SET",
+            OrderedDict(
+                [
+                    (
+                        "STUDY",
+                        OrderedDict(
+                            [
+                                ("@accession", "SRP283872"),
+                                ("@alias", "PRJNA660883"),
+                                ("@center_name", "BioProject"),
+                                ("@broker_name", "NCBI"),
+                                (
+                                    "IDENTIFIERS",
+                                    OrderedDict(
+                                        [
+                                            (
+                                                "PRIMARY_ID",
+                                                "SRP283872",
+                                            ),
+                                            (
+                                                "SECONDARY_ID",
+                                                "PRJNA660883",
+                                            ),
+                                            (
+                                                "EXTERNAL_ID",
+                                                OrderedDict(
+                                                    [
+                                                        (
+                                                            "@label",
+                                                            "primary",
+                                                        ),
+                                                        (
+                                                            "@namespace",
+                                                            "BioProject",
+                                                        ),
+                                                        (
+                                                            "#text",
+                                                            "PRJNA660883",
+                                                        ),
+                                                    ]
+                                                ),
+                                            ),
+                                            (
+                                                "SUBMITTER_ID",
+                                                OrderedDict(
+                                                    [
+                                                        (
+                                                            "@namespace",
+                                                            "BioProject",
+                                                        ),
+                                                        (
+                                                            "#text",
+                                                            "PRJNA660883",
+                                                        ),
+                                                    ]
+                                                ),
+                                            ),
+                                        ]
+                                    ),
+                                ),
+                                (
+                                    "DESCRIPTOR",
+                                    OrderedDict(
+                                        [
+                                            (
+                                                "STUDY_TITLE",
+                                                "human stool Metagenome from acute COVID19+ subjects",
+                                            ),
+                                            (
+                                                "STUDY_TYPE",
+                                                OrderedDict(
+                                                    [
+                                                        (
+                                                            "@existing_study_type",
+                                                            "Metagenomics",
+                                                        )
+                                                    ]
+                                                ),
+                                            ),
+                                            (
+                                                "STUDY_ABSTRACT",
+                                                "16S and metagenomic sequences from individuals with acute COVID19",
+                                            ),
+                                            (
+                                                "CENTER_PROJECT_NAME",
+                                                "human stool",
+                                            ),
+                                        ]
+                                    ),
+                                ),
+                                (
+                                    "STUDY_LINKS",
+                                    OrderedDict(
+                                        [
+                                            (
+                                                "STUDY_LINK",
+                                                [
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "XREF_LINK",
+                                                                OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "DB",
+                                                                            "ENA-SAMPLE",
+                                                                        ),
+                                                                        (
+                                                                            "ID",
+                                                                            "SRS7392524-SRS7392559",
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                            )
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "XREF_LINK",
+                                                                OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "DB",
+                                                                            "ENA-EXPERIMENT",
+                                                                        ),
+                                                                        (
+                                                                            "ID",
+                                                                            "SRX9152521-SRX9152556",
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                            )
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "XREF_LINK",
+                                                                OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "DB",
+                                                                            "ENA-RUN",
+                                                                        ),
+                                                                        (
+                                                                            "ID",
+                                                                            "SRR12672280-SRR12672315",
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                            )
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "XREF_LINK",
+                                                                OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "DB",
+                                                                            "ENA-SUBMISSION",
+                                                                        ),
+                                                                        (
+                                                                            "ID",
+                                                                            "SRA1127885",
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                            )
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "XREF_LINK",
+                                                                OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "DB",
+                                                                            "ENA-FASTQ-FILES",
+                                                                        ),
+                                                                        (
+                                                                            "ID",
+                                                                            "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=SRP283872&result=read_run&fields=run_accession,fastq_ftp,fastq_md5,fastq_bytes",
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                            )
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "XREF_LINK",
+                                                                OrderedDict(
+                                                                    [
+                                                                        (
+                                                                            "DB",
+                                                                            "ENA-SUBMITTED-FILES",
+                                                                        ),
+                                                                        (
+                                                                            "ID",
+                                                                            "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=SRP283872&result=read_run&fields=run_accession,submitted_ftp,submitted_md5,submitted_bytes,submitted_format",
+                                                                        ),
+                                                                    ]
+                                                                ),
+                                                            )
+                                                        ]
+                                                    ),
+                                                ],
+                                            )
+                                        ]
+                                    ),
+                                ),
+                                (
+                                    "STUDY_ATTRIBUTES",
+                                    OrderedDict(
+                                        [
+                                            (
+                                                "STUDY_ATTRIBUTE",
+                                                [
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "TAG",
+                                                                "ENA-SPOT-COUNT",
+                                                            ),
+                                                            (
+                                                                "VALUE",
+                                                                "166909868",
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "TAG",
+                                                                "ENA-BASE-COUNT",
+                                                            ),
+                                                            (
+                                                                "VALUE",
+                                                                "50072960400",
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "TAG",
+                                                                "ENA-FIRST-PUBLIC",
+                                                            ),
+                                                            (
+                                                                "VALUE",
+                                                                "2020-10-20",
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    OrderedDict(
+                                                        [
+                                                            (
+                                                                "TAG",
+                                                                "ENA-LAST-UPDATE",
+                                                            ),
+                                                            (
+                                                                "VALUE",
+                                                                "2020-10-20",
+                                                            ),
+                                                        ]
+                                                    ),
+                                                ],
+                                            )
+                                        ]
+                                    ),
+                                ),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        )
+    ]
+)
 
 
 class utilTest(unittest.TestCase):
@@ -27,11 +320,14 @@ class utilTest(unittest.TestCase):
     """
 
     def setUp(self):
-        self.maxDiff = None
-        # clean up the directory at the start
-        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
-        for c in cleanup_list:
-            remove(c)
+        self.maxDiff = None  # helps with troubleshooting
+        setup_output_dir(_TEST_OUTPUT_DIR)
+
+    def tearDown(self):
+        # clean up the directory at the end
+        for c in _CLEANUP_LIST:
+            if path.isfile(c):
+                remove(c)
 
     def test_load_project_file(self):
         test_project_file = _TEST_SUPPORT_DIR + "/test_project_file.tsv"
@@ -49,35 +345,11 @@ class utilTest(unittest.TestCase):
             test_load_project_list, test_load_project_list_no_header
         )
 
-    def test_retrieve_ftp_file(self):
-        test_ftp_path = "ftp.sra.ebi.ac.uk/vol1/fastq/SRR138/071/SRR13874871/SRR13874871.fastq.gz"
-        test_local_fastq_path = _TEST_OUTPUT_DIR + "/SRR13874871.fastq.gz"
-        test_checksum = "06445ed5341e3779ac1d5230c787c538"
-        test_corrupt_fastq_path = (
-            _TEST_SUPPORT_DIR + "/corrupt_fastq1.fastq.gz"
-        )
-        test_overwrite = True
-
-        test_checksum_1 = retrieve_ftp_file(
-            test_ftp_path, test_local_fastq_path, test_checksum
-        )
-
-        self.assertTrue(path.isfile(test_local_fastq_path))
-        self.assertEqual(test_checksum, test_checksum_1)
-
-        copy(test_corrupt_fastq_path, test_local_fastq_path)
-
-        test_checksum_2 = retrieve_ftp_file(
-            test_ftp_path, test_local_fastq_path, test_checksum
-        )
-        self.assertTrue(path.isfile(test_local_fastq_path))
-        self.assertEqual(test_checksum, test_checksum_2)
-
-    def test_check_download_integrity(self):
+    def test_compare_checksum(self):
         test_local_fastq_path = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
         expected_md5 = "06445ed5341e3779ac1d5230c787c538"
         self.assertTrue(path.isfile(test_local_fastq_path))
-        md5checksum_res = check_download_integrity(
+        md5checksum_res = compare_checksum(
             test_local_fastq_path, expected_md5
         )
         self.assertEqual(expected_md5, md5checksum_res)
@@ -90,10 +362,10 @@ class utilTest(unittest.TestCase):
             "https://www.nature.com/articles/s41598-021-83922-6.pdf"
         )
 
-        self.assertEqual(len(tokens_html), 84361) # this changes a lot...
+        self.assertEqual(len(tokens_html), 84361)  # this changes a lot...
         self.assertEqual(len(tokens_pdf), 15771)
 
-    def scrape_ebi_ids(self):
+    def test_scrape_ebi_ids(self):
         test_paths = [
             "https://www.nature.com/articles/s41598-021-83922-6.pdf",
             "https://www.nature.com/articles/s41598-020-60564-8",
@@ -106,6 +378,50 @@ class utilTest(unittest.TestCase):
             parsed_doc = parse_document(f)
             test_ids_retrieved.append(scrape_ebi_ids(parsed_doc))
             self.assertEqual(test_ids, test_ids_retrieved)
+
+    def test_get_ebi_ids(self):
+        expected_tuple = "SRP283872", "PRJNA660883"
+        test_id_tuple = get_ebi_ids(_TEST_STUDY_DICT)
+        self.assertEqual(expected_tuple, test_id_tuple)
+
+    def test_setup_output_dir(self):
+        # called in setUp so just make sure it worked
+        self.assertTrue(path.isdir(_TEST_OUTPUT_DIR))
+
+    def test_detect_qiita_study(self):
+        expected_studies = ["test3", "test4"]
+        test_dict_1 = {
+            "sample_name": ["test1", "test2"],
+            "qiita_study_id": ["test3", "test4"],
+        }
+
+        test_df_1 = pd.DataFrame(test_dict_1)
+        test_df_2 = pd.DataFrame()
+        self.assertEquals(
+            set(expected_studies), set(detect_qiita_study(test_df_1))
+        )
+        self.assertFalse(detect_qiita_study(test_df_2))
+
+    def test_parse_details(self):
+        expected_dict = {
+            "abstract": "16S and metagenomic sequences from individuals with acute COVID19",
+            "description": "PRJNA660883",
+            "title": "human stool Metagenome from acute COVID19+ subjects",
+            "seq_method": ["16S"],
+        }
+        parsed_dict = parse_details(_TEST_STUDY_DICT)
+        self.assertEqual(expected_dict, parsed_dict)
+
+    def test_scrape_seq_method(self):
+        test_string_1 = "16S and metagenomic sequences from individuals with acute COVID19"
+        test_string_2 = "ITS a beautiful mix of methods 18Sit s1 16s"
+        test_string_3 = "ITS1 18S"
+        self.assertEqual(
+            scrape_seq_method(test_string_1), scrape_seq_method(test_string_2)
+        )
+        self.assertNotEqual(
+            scrape_seq_method(test_string_2), scrape_seq_method(test_string_3)
+        )
 
 
 if __name__ == "__main__":

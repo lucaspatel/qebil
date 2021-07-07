@@ -5,6 +5,7 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
+  - blast=2.9.0
   - bzip2=1.0.8
   - c-ares=1.17.1
   - ca-certificates=2020.12.5
@@ -64,3 +65,4 @@ dependencies:
     - urllib3==1.26.4
     - xlrd==1.2.0
     - xmltodict==0.12.0
+

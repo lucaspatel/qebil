@@ -3,6 +3,7 @@ from qebil.normalize import (
     apply_validation,
     normalize_lat_lon,
     add_emp_info,
+    split_lat_lon
 )
 import unittest
 from pandas.testing import assert_frame_equal
@@ -21,6 +22,10 @@ setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class NormalizeTest(unittest.TestCase):
+    
+    def setUp(self):
+        self.maxDiff = None
+        
     def test_qiimp_parser(self):
         """Tests parsing of Qiimp-format yaml or xlsx files to obtain a dictionary of
         rules for metadata normalization
@@ -37,8 +42,8 @@ class NormalizeTest(unittest.TestCase):
             }
         }
         failed_yml = {}
-        test_yml = _test_support_dir + "/test.yml"
-        test_xlsx = _test_support_dir + "/test.xlsx"
+        test_yml = _TEST_SUPPORT_DIR + "/test.yml"
+        test_xlsx = _TEST_SUPPORT_DIR + "/test.xlsx"
 
         self.assertEqual(expected_yml, qiimp_parser(test_yml))
         self.assertEqual(expected_yml, qiimp_parser(test_xlsx))
@@ -371,50 +376,105 @@ class NormalizeTest(unittest.TestCase):
                 "type": "string",
             },
         }
-        test_df = pd.DataFrame.from_dict(
+        expected_df = pd.DataFrame.from_dict(
             {
-                "collection_device": [],
-                "collection_method": [],
-                "collection_timestamp": [],
-                "description": [],
-                "dna_extracted": [],
-                "elevation": [],
-                "elevation_units": [],
-                "empo_1": [],
-                "empo_2": [],
-                "empo_3": [],
-                "env_biome": [],
-                "env_feature": [],
-                "env_material": [],
-                "env_package": [],
-                "geo_loc_name": [],
-                "host_subject_id": [],
-                "latitude": [],
-                "latitude_units": [],
-                "longitude": [],
-                "longitude_units": [],
-                "physical_specimen_location": [],
-                "physical_specimen_remaining": [],
-                "sample_name": [],
-                "sample_type": [],
-                "scientific_name": [],
-                "taxon_id": [],
-                "title": [],
-                "tube_id": [],
+                "qebil_collection_device": ["not provided","not provided"],
+                "qebil_collection_method": ["not provided","not provided"],
+                "qebil_collection_timestamp": ["not provided","not provided"],
+                "qebil_description": ["not provided","not provided"],
+                "qebil_dna_extracted": ["not provided","not provided"],
+                "qebil_elevation": ["not provided","not provided"],
+                "qebil_elevation_units": ["meters","meters"],
+                "qebil_empo_1": ["not provided","not provided"],
+                "qebil_empo_2": ["not provided","not provided"],
+                "qebil_empo_3": ["not provided","not provided"],
+                "qebil_env_biome": ["not provided","not provided"],
+                "qebil_env_feature": ["not provided","not provided"],
+                "qebil_env_material": ["not provided","not provided"],
+                "qebil_env_package": ["not provided","not provided"],
+                "qebil_geo_loc_name": ["not provided","not provided"],
+                "qebil_host_subject_id": ["not provided","not provided"],
+                "qebil_latitude": ["not provided","not provided"],
+                "qebil_latitude_units": ["Decimal degrees","Decimal degrees"],
+                "qebil_longitude": ["not provided","not provided"],
+                "qebil_longitude_units": ["Decimal degrees","Decimal degrees"],
+                "qebil_physical_specimen_location": ["not provided","not provided"],
+                "qebil_physical_specimen_remaining": ["not provided","not provided"],
+                "prep_file": ["AMBIGUOUS_0", "Metagenomic_0"],
+                "sample_name": ["sample1", "sample2"],
+                "qebil_sample_type": ["other","other"],
+                "qebil_scientific_name": ["metagenome","metagenome"],
+                "qebil_taxon_id": ["256318","256318"],
+                "qebil_title": ["not provided","not provided"],
+                "qebil_tube_id": ["not provided","not provided"],
             }
         )
-        expected_df = pd.DataFrame.from_dict(
+        test_df = pd.DataFrame.from_dict(
             {
                 "sample_name": ["sample1", "sample2"],
                 "prep_file": ["AMBIGUOUS_0", "Metagenomic_0"],
             }
         )
-        expected_msg = ""
+        expected_msg = (
+            "collection_device not found in metadata. Attempting to generate qebil_collection_device from available sources.\n"
+            + "collection_device has no default in yaml template. Encoding as 'not provided'\n"
+            + "collection_method not found in metadata. Attempting to generate qebil_collection_method from available sources.\n"
+            + "collection_method has no default in yaml template. Encoding as 'not provided'\n"
+            + "collection_timestamp not found in metadata. Attempting to generate qebil_collection_timestamp from available sources.\n"
+            + "collection_timestamp has no default in yaml template. Encoding as 'not provided'\n"
+            + "description not found in metadata. Attempting to generate qebil_description from available sources.\n"
+            + "description has no default in yaml template. Encoding as 'not provided'\n"
+            + "dna_extracted not found in metadata. Attempting to generate qebil_dna_extracted from available sources.\n"
+            + "dna_extracted has no default in yaml template. Encoding as 'not provided'\n"
+            + "elevation not found in metadata. Attempting to generate qebil_elevation from available sources.\n"
+            + "elevation has no default in yaml template. Encoding as 'not provided'\n"
+            + "elevation_units not found in metadata. Attempting to generate qebil_elevation_units from available sources.\n"
+            + "Setting qebil_elevation_units to meters\n"
+            + "empo_1 not found in metadata. Attempting to generate qebil_empo_1 from available sources.\n"
+            + "empo_1 has no default in yaml template. Encoding as 'not provided'\n"
+            + "empo_2 not found in metadata. Attempting to generate qebil_empo_2 from available sources.\n"
+            + "empo_2 has no default in yaml template. Encoding as 'not provided'\n"
+            + "empo_3 not found in metadata. Attempting to generate qebil_empo_3 from available sources.\n"
+            + "empo_3 has no default in yaml template. Encoding as 'not provided'\n"
+            + "env_biome not found in metadata. Attempting to generate qebil_env_biome from available sources.\n"
+            + "env_biome has no default in yaml template. Encoding as 'not provided'\n"
+            + "env_feature not found in metadata. Attempting to generate qebil_env_feature from available sources.\n"
+            + "env_feature has no default in yaml template. Encoding as 'not provided'\n"
+            + "env_material not found in metadata. Attempting to generate qebil_env_material from available sources.\n"
+            + "env_material has no default in yaml template. Encoding as 'not provided'\n"
+            + "env_package not found in metadata. Attempting to generate qebil_env_package from available sources.\n"
+            + "env_package has no default in yaml template. Encoding as 'not provided'\n"
+            + "geo_loc_name not found in metadata. Attempting to generate qebil_geo_loc_name from available sources.\n"
+            + "geo_loc_name has no default in yaml template. Encoding as 'not provided'\n"
+            + "host_subject_id not found in metadata. Attempting to generate qebil_host_subject_id from available sources.\n"
+            + "host_subject_id has no default in yaml template. Encoding as 'not provided'\n"
+            + "latitude not found in metadata. Attempting to generate qebil_latitude from available sources.\n"
+            + "latitude has no default in yaml template. Encoding as 'not provided'\n"
+            + "latitude_units not found in metadata. Attempting to generate qebil_latitude_units from available sources.\n"
+            + "Setting qebil_latitude_units to Decimal degrees\n"
+            + "longitude not found in metadata. Attempting to generate qebil_longitude from available sources.\n"
+            + "longitude has no default in yaml template. Encoding as 'not provided'\n"
+            + "longitude_units not found in metadata. Attempting to generate qebil_longitude_units from available sources.\n"
+            + "Setting qebil_longitude_units to Decimal degrees\n"
+            + "physical_specimen_location not found in metadata. Attempting to generate qebil_physical_specimen_location from available sources.\n"
+            + "physical_specimen_location has no default in yaml template. Encoding as 'not provided'\n"
+            + "physical_specimen_remaining not found in metadata. Attempting to generate qebil_physical_specimen_remaining from available sources.\n"
+            + "physical_specimen_remaining has no default in yaml template. Encoding as 'not provided'\n"
+            + "sample_type not found in metadata. Attempting to generate qebil_sample_type from available sources.\n"
+            + "Setting qebil_sample_type to other\n"
+            + "scientific_name not found in metadata. Attempting to generate qebil_scientific_name from available sources.\n"
+            + "Setting qebil_scientific_name to metagenome\n"
+            + "taxon_id not found in metadata. Attempting to generate qebil_taxon_id from available sources.\n"
+            + "Setting qebil_taxon_id to 256318\n"
+            + "title not found in metadata. Attempting to generate qebil_title from available sources.\n"
+            + "title has no default in yaml template. Encoding as 'not provided'\n"
+            + "tube_id not found in metadata. Attempting to generate qebil_tube_id from available sources.\n"
+            + "tube_id has no default in yaml template. Encoding as 'not provided'\n"
+                       )
         result_df, result_msg = apply_validation(test_df, test_yml)
 
         self.assertEqual(result_msg, expected_msg)
-        assert_frame_equal(expected_df, result_df)
-        raise NotImplementedError
+        assert_frame_equal(expected_df.sort_index(axis=1), result_df.sort_index(axis=1))
 
         # Addtional potential tests:
         # need a column that will test if the key from the validator is not in the test_df
@@ -501,17 +561,17 @@ class NormalizeTest(unittest.TestCase):
         test_non_standard = "30.01 -90.01"
         results_dict = {}
         for k in test_dict.keys():
-            self.assertEqual(k, normalize_lat_lon(k))
-            self.assertEqual(test_dict[k]["lat"], normalize_lat_lon(k, "lat"))
+            self.assertEqual(k, split_lat_lon(k))
+            self.assertEqual(test_dict[k]["lat"], split_lat_lon(k, "lat"))
             self.assertEqual(
-                test_dict[k]["long"], normalize_lat_lon(k, "long")
+                test_dict[k]["long"], split_lat_lon(k, "long")
             )
 
         self.assertEqual(
-            test_non_standard, normalize_lat_lon(test_non_standard, "lat")
+            test_non_standard, split_lat_lon(test_non_standard, "lat")
         )
         self.assertEqual(
-            test_non_standard, normalize_lat_lon(test_non_standard, "long")
+            test_non_standard, split_lat_lon(test_non_standard, "long")
         )
 
 

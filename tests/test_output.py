@@ -5,13 +5,14 @@ from qebil.output import (
     write_config_file,
     write_metadata_files,
     write_qebil_info_files,
+    update_qebil_status,
+    write_file
 )
 from qebil.core import Study
 from collections import OrderedDict
-from os import path, remove
+from os import path, remove, makedirs
 import glob
 import pandas as pd
-import xmltodict
 
 from pandas.testing import assert_frame_equal
 
@@ -23,9 +24,11 @@ _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")
 
 _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
 
-setup_output_dir(_TEST_OUTPUT_DIR)
-
 test_study_id = "SRP283872"
+
+_CLEANUP_LIST = []
+
+setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class OutputTest(unittest.TestCase):
@@ -36,19 +39,16 @@ class OutputTest(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         # clean up the directory at the start
-        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
-        for c in cleanup_list:
-            remove(c)
+        tidy_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
+        for c in tidy_list:
+            if path.isfile(c):
+                remove(c)
 
     def tearDown(self):
         self.runner = None
-
-    def test_stage_output(self):
-        if not path.isdir(_TEST_OUTPUT_DIR):
-            makedirs(_TEST_OUTPUT_DIR)
-        else:
-            cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "*")
-            for c in cleanup_list:
+        # clean up the directory at the start
+        for c in _CLEANUP_LIST:
+            if path.isfile(c):
                 remove(c)
 
     def test_write_config_files(self):
@@ -60,8 +60,8 @@ class OutputTest(unittest.TestCase):
             + "principal_investigator = Qiita-EBI Import, "
             + "qiita.help@gmail.com, See study details\n"
             + "reprocess = False\n"
-            + "study_alias = PRJNA660883\n"
-            + "study_description = SRP283872; \n"
+            + "study_alias = PRJNA660883; \n"
+            + "study_description = SRP283872; PRJNA660883\n"
             + "study_abstract = 16S and metagenomic "
             + "sequences from individuals with acute "
             + "COVID19\n"
@@ -455,6 +455,8 @@ class OutputTest(unittest.TestCase):
             sep="\t",
             header=0,
         )
+        print("test_raw_columns:" + str(sorted(test_raw_df.columns)))
+        print("created_raw_columns:" + str(sorted(created_raw_df.columns)))
         assert_frame_equal(test_raw_df, created_raw_df)
         assert_frame_equal(test_sample_df, created_sample_df)
         assert_frame_equal(test_prep_df, created_prep_df)
@@ -463,7 +465,7 @@ class OutputTest(unittest.TestCase):
         """Tests the creation of sample and prep information files"""
         test_study = Study.from_remote(test_study_id, full_details=True)
         test_study.populate_preps()
-        print("test_study columns: " + test_study.metadata.columns)
+        #print("test_study columns: " + str(sorted(test_study.metadata.columns)))
         write_qebil_info_files(
             test_study,
             _TEST_OUTPUT_DIR,
@@ -491,7 +493,8 @@ class OutputTest(unittest.TestCase):
             sep="\t",
             header=0,
         )
-
+        print("test_sample_df columns:" + str(sorted(test_sample_df.columns)))
+        print("created_sample_df columns:" + str(sorted(created_sample_df.columns)))
         assert_frame_equal(
             test_sample_df.sort_index(axis=1),
             created_sample_df.sort_index(axis=1),
@@ -504,6 +507,54 @@ class OutputTest(unittest.TestCase):
         cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
         for c in cleanup_list:
             remove(c)
+
+    def test_write_file(self):
+        """Helper method to write out text files"""
+        test_string = "this is a test"
+        test_lines = [test_string+"\n", test_string]
+        test_file_name = "test.foo"
+
+        write_file(test_file_name, test_string)
+        res_file = open(test_file_name, "r")
+        res_contents = res_file.readlines()[0]
+        res_file.close()
+        self.assertEqual(test_string, res_contents)
+        
+
+        write_file(test_file_name, "\n"+test_string, "a")
+        res_file = open(test_file_name, "r")
+        res_contents = res_file.readlines()
+        res_file.close()
+        self.assertEqual(test_lines, res_contents)
+        
+        # cleanup
+        _CLEANUP_LIST.append(test_file_name)
+
+    def update_qebil_status(self):
+        test_qs_file = _TEST_OUTPUT_DIR + "/test.qebil_status"
+        test_string_1 = "test complete"
+        test_string_2 = "testing"
+        test_lines = [test_string_1, test_string_2]
+        test_string_3 = "done"
+
+        update_qebil_status(_TEST_OUTPUT_DIR, "test", test_string_1)
+        res_file = open(test_qs_file, "r")
+        self.assertEqual(test_string_1, res_file.readlines()[0])
+        res_file.close()
+
+        update_qebil_status(_TEST_OUTPUT_DIR, "test", test_string_2)
+        res_file = open(test_qs_file, "r")
+        self.assertEqual(test_lines, res_file.readlines())
+        res_file.close()
+
+        update_qebil_status(_TEST_OUTPUT_DIR, "test", test_string_3, True)
+        res_file = open(test_qs_file, "r")
+        first_line = res_file.readlines()[0]
+        res_file.close()
+        self.assertEqual(test_string_3, first_line)
+
+        # cleanup
+        _CLEANUP_LIST.append(test_qs_file)
 
 
 if __name__ == "__main__":

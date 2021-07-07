@@ -1,11 +1,9 @@
-from qebil.process import deplete_on_the_fly, run_fastp, run_host_depletion
+from qebil.process import deplete_on_the_fly
 from qebil.tools.fastq import get_read_count
 from qebil.core import Study
 import unittest
 from os import path
-from shutil import copy
-import pandas as pd
-import glob
+
 from qebil.tools.util import setup_output_dir
 
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
@@ -16,6 +14,9 @@ _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
 
 setup_output_dir(_TEST_OUTPUT_DIR)
 test_study_id = "SRP283872"
+
+
+test_local_fastq_path = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
 
 
 class ProcessTest(unittest.TestCase):

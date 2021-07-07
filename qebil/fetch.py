@@ -2,18 +2,19 @@ from os import path, remove
 import pandas as pd
 import requests
 from xmltodict import parse
+import urllib
+from urllib.request import urlretrieve
 
 from qebil.log import logger
 from qebil.tools.fastq import (
-    unpack_fastq_ftp,
+    blast_for_type,
     get_read_count,
-    remove_index_read_file
 )
 
 from qebil.tools.util import (
-    retrieve_ftp_file,
-    retrieve_aspera_file,
-    blast_for_type
+    compare_checksum,
+    unpack_fastq_ftp,
+    remove_index_read_file
 )
 
 
@@ -82,7 +83,6 @@ def fetch_ebi_metadata(study_accession, fields=[]):
             "run_accession",
             "experiment_accession",
             "fastq_ftp",
-            "fastq_aspera",
             "library_source",
             "instrument_platform",
             "submitted_format",
@@ -126,7 +126,7 @@ def fetch_ebi_metadata(study_accession, fields=[]):
 
 
 def fetch_fastq_files(
-    run_prefix, ftp_dict, output_dir, remove_index_file=False
+    run_prefix, ftp_dict, output_dir, lib_layout, remove_index_file=False
 ):
     """Retrieves fastq files from EBI, checks their validity by
     comparing the remote and local checksums and then returns
@@ -140,6 +140,11 @@ def fetch_fastq_files(
         dictionary of remote ftp files and checksums
     output_dir: string
         directory where to write the output file(s)
+    lib_layout: string
+        layout of library; single or paired
+    remove_index_file: bool
+        whether to try to identify and remove any index file
+        based on read length disparity
 
     Returns
     ---------
@@ -198,118 +203,7 @@ def fetch_fastq_files(
     else:
         if remove_index_file:
             logger.info("Removing index file")
-            remove_index_read_file(run_prefix)
-
-        if len(local_read_dict) == 1:
-            raw_reads = get_read_count(local_read_dict["read1"])
-            if raw_reads == "fqtools error":
-                logger.warning(
-                    "Check file validity failed for "
-                    + str(local_read_dict["read1"])
-                    + "Removing."
-                )
-                remove(local_read_dict["read1"])
-                raw_reads = "error"
-        elif len(local_read_dict) == 2:
-            raw_reads = get_read_count(
-                local_read_dict["read1"], local_read_dict["read2"]
-            )
-            if raw_reads == "fqtools error":
-                logger.warning(
-                    "Check file validity failed for "
-                    + str(local_read_dict["read1"].replace("R1", "R*"))
-                    + "Removing."
-                )
-                remove(local_read_dict["read1"])
-                remove(local_read_dict["read2"])
-                raw_reads = "error"
-        else:
-            logger.warning(
-                "Read count not possible for"
-                + str(len(local_read_dict))
-                + " reads."
-            )
-            raw_reads = "error"
-
-    return raw_reads
-
-
-def fetch_fastq_files_aspera(
-    run_prefix, ftp_dict, output_dir, remove_index_file=False
-):
-    """Retrieves fastq files from EBI, checks their validity by
-    comparing the remote and local checksums and then returns
-    the number of reads in the downloaded file(s).
-
-    Parameters
-    -----------
-    run_prefix: string
-        prefix prepended to local files
-    ftp_dict: dict
-        dictionary of remote ftp files and checksums
-    output_dir: string
-        directory where to write the output file(s)
-
-    Returns
-    ---------
-    raw_reads : int
-        the number of reads in the downloaded file(s)
-    """
-
-    failed_list = []
-    local_read_dict = {}
-
-    for read in ftp_dict.keys():
-        read_num = read[-1]
-        local_fq_path = (
-            output_dir
-            + "/"
-            + run_prefix
-            + ".R"
-            + str(read_num)
-            + ".ebi.fastq.gz"
-        )
-        remote_fp = ftp_dict[read]["ftp"]
-        remote_md5 = ftp_dict[read]["md5"]
-        local_read_dict["read" + str(read_num)] = local_fq_path
-        if run_prefix in failed_list:
-            logger.warning(
-                "Skipping download of " + remote_fp + " Paired file failed."
-            )
-        else:
-            success = retrieve_aspera_file(
-                remote_fp, local_fq_path, remote_md5
-            )
-            if not success:
-                logger.warning(
-                    "Download of "
-                    + remote_fp
-                    + " to "
-                    + local_fq_path
-                    + " failed."
-                )
-                failed_list.append(run_prefix)
-
-    if len(failed_list) > 0:
-        raw_reads = "error"
-        logger.warning(
-            "The fastq file(s) failed to download for:"
-            + str(failed_list)
-            + " removing partial"
-            + " fastq files."
-        )
-        for r in local_read_dict.values():
-            if path.isfile(r):
-                logger.info("Removing " + r)
-                remove(r)
-            else:
-                logger.warning(
-                    "Could not remove" + r + "file does not exist."
-                )
-    else:
-        if remove_index_file:
-            logger.info("Removing index file")
-            remove_index_read_file(run_prefix)
+            remove_index_read_file(local_read_dict, lib_layout)
 
         if len(local_read_dict) == 1:
             raw_reads = get_read_count(local_read_dict["read1"])
@@ -385,8 +279,13 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
                     "No fastq files to download found for\n" + run_prefix
                 )
             else:
+                layout = row["library_layout"]
                 row["qebil_raw_reads"] = fetch_fastq_files(
-                    run_prefix, ebi_dict, output_dir, remove_index_file
+                    run_prefix,
+                    ebi_dict,
+                    output_dir,
+                    layout,
+                    remove_index_file,
                 )
                 if row["qebil_raw_reads"] == "error":
                     logger.warning("Issue retrieving files for " + run_prefix)
@@ -441,65 +340,70 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
     return md
 
 
-def fetch_fastqs_aspera(study, output_dir, remove_index_file=False):
-    """Helper method to consolidate calls to other methods for processing fastqs
-
-    This method is potentially convoluted to try to handle the fact that runs
-    need to be able to recover and some will want to minimize the storage
-    footprint for heavily host contaminated files.
-
-    This may be done more simply and elegantly so consider refactor?
+def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
+    """Method to retrieve an ftp file and check accuracy
+    of the download. If not overwriting, check the local copy for validity
+    before downloading.
 
     Parameters
     ----------
-    study: qebil.Study
-        Study object
-    output_dir: string
-        where to write the files
-    remove_index_file: bool
-        whether to resolve studies with three reads to remove the index file
+    ftp_path: string:
+        the ftp url to download from
+    filepath: string
+        the local path to save the file to
+    remote_checksum: string
+        hexadecimal md5 checksum to validate the downlod
+    overwrite : bool
+        whether to overwrite the local copy of the file
+
+    Returns
+    ---------
+    checksum: str or bool
+        returns either the string for the checksum or False
+        if there is an issue with the download or integrity
 
     """
-    md = study.metadata
-    row_list = []
-
-    for index, row in md.iterrows():
-        run_prefix = ""
-        ebi_dict = {}
-        new_row = row
-        try:
-            run_prefix = row["run_prefix"]
-        except KeyError:
-            logger.warning("No run_prefix in metadata for: " + index)
-        if len(run_prefix) > 0:
-            logger.info("Unpacking: " + str(row["fastq_aspera"]))
-            ebi_dict = unpack_fastq_ftp(
-                str(row["fastq_aspera"]), str(row["fastq_md5"])
-            )
-            if len(ebi_dict) == 0:
-                logger.warning(
-                    "No fastq files to download found for\n" + run_prefix
+    # see if the file exists and make sure it's valid if so
+    local = False
+    if not overwrite:
+        if path.isfile(filepath):
+            checksum = compare_checksum(filepath, remote_checksum)
+            if checksum:
+                local = True
+                logger.info(
+                    "Valid file found. Skipping download of file: "
+                    + "ftp://"
+                    + ftp_path
+                    + " to "
+                    + filepath
                 )
+                return checksum
             else:
-                row["qebil_raw_reads"] = fetch_fastq_files_aspera(
-                    run_prefix, ebi_dict, output_dir, remove_index_file
+                logger.warning(
+                    "Local file found but invalid checksum."
+                    + " Downloading again: "
+                    + "ftp://"
+                    + ftp_path
+                    + " to "
+                    + filepath
                 )
-                if row["qebil_raw_reads"] == "error":
-                    logger.warning("Issue retrieving files for " + run_prefix)
-                else:
-                    logger.info(
-                        "Retrieved "
-                        + run_prefix
-                        + " with "
-                        + str(row["qebil_raw_reads"])
-                        + " reads."
-                    )
-        # even if it fails, we'll need to return the row
-        row_list.append(new_row)
 
-    # combine the rows back together
-    md = pd.DataFrame()
-    for r in row_list:
-        md = md.append(r)
-
-    return md
+    if not local:
+        # add catch in case there is an issue with the connection
+        try:
+            urlretrieve("ftp://" + ftp_path, filepath)
+            checksum = compare_checksum(filepath, remote_checksum)
+            return checksum
+        except urllib.error.URLError:  # RequestException:
+            logger.warning(
+                "Issue with urlretrieve for "
+                + "download of file:"
+                + "ftp://"
+                + ftp_path
+                + " to "
+                + filepath
+            )
+            # cleanup file if present
+            if path.isfile(ftp_path):
+                remove(ftp_path)
+            return False
