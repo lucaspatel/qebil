@@ -142,7 +142,7 @@ def write_config_file(xml_dict, prefix="", null_val="XXEBIXX"):
         + alias
         + description
         + abstract
-        + "\nefo_ids = 1\n[optional]"
+        + "\nefo_ids = 1\n[optional]\n"
     ).replace(
         "%", "%%"
     )  # need to avoid % sign

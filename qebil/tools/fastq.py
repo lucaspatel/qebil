@@ -198,30 +198,29 @@ def get_read_length(fastq_file):
     """Helper method to get the average length of
     reads in fastq file"""
 
-    count = "error"
+    length = "error"
     if path.isfile(fastq_file):
         fqtools_args = [
             "fqtools",
             "lengthtab",
             fastq_file,
         ]
-        fqtools_ps = Popen(fqtools_args)
-        fqtools_ps.wait()
+        fqtools_ps = Popen(fqtools_args, stdout=PIPE)
+        res = fqtools_ps.communicate()[0]
+        res = res.decode().replace("\n", "")
 
-        if fqtools_ps.returncode != 0:
+        if fqtools_ps.returncode == 0:
+            length = res.split("\t")[0]
+        else:
             logger.warning(
-                "failed to get head of "
+                "failed to get count of "
                 + fastq_file
                 + ". Check format and filesize."
             )
-
-        else:
-            count = fqtools_ps.communicate()[0].split("\t")[0]
-
     else:
         logger.warning("Could not find fastq file: " + fastq_file)
 
-    return count
+    return length
 
 
 def get_fastq_head(fastq_file, head_fn="", head_size=100):

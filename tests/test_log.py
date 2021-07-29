@@ -69,7 +69,7 @@ class TestSetupLogging(unittest.TestCase):
         level_list = ["DEBUG", "INFO", "WARNING"]
 
         for level in level_list:
-            test_path = _TEST_OUTPUT_DIR + '/'+ level.lower() + ".log"
+            test_path = _TEST_OUTPUT_DIR + "/" + level.lower() + ".log"
 
             if path.isfile(test_path):
                 remove(test_path)

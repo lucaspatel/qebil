@@ -1,19 +1,23 @@
 from collections import OrderedDict
 from os import path, remove
+from shutil import copy
 import pandas as pd
 import unittest
 
+from qebil.tools.fastq import get_fastq_head
+
 from qebil.tools.util import (
-    
     compare_checksum,
     detect_qiita_study,
     get_ebi_ids,
     load_project_file,
     parse_document,
     parse_details,
+    remove_index_read_file,
     scrape_ebi_ids,
     scrape_seq_method,
-    setup_output_dir
+    setup_output_dir,
+    unpack_fastq_ftp,
 )
 
 
@@ -362,22 +366,27 @@ class utilTest(unittest.TestCase):
             "https://www.nature.com/articles/s41598-021-83922-6.pdf"
         )
 
-        self.assertEqual(len(tokens_html), 84361)  # this changes a lot...
+        self.assertEqual(len(tokens_html), 84476)  # this changes a lot...
         self.assertEqual(len(tokens_pdf), 15771)
 
     def test_scrape_ebi_ids(self):
         test_paths = [
-            "https://www.nature.com/articles/s41598-021-83922-6.pdf",
-            "https://www.nature.com/articles/s41598-020-60564-8",
-            _TEST_SUPPORT_DIR + "/test.pdf",
+            "https://bmccancer.biomedcentral.com/track/pdf/10.1186/s12885-020-6654-5.pdf",
+            "https://bmccancer.biomedcentral.com/articles/10.1186/s12885-020-6654-5",
+            _TEST_SUPPORT_DIR
+            + "/test.pdf",  # contains PRJNA, but now invalid ID. Update?
         ]
-        test_ids = [["PRJNA61366"], [], ["PRJNA61366"]]
+        test_ids = [["PRJNA533024"], ["PRJNA533024"], []]
         test_ids_retrieved = []
 
         for f in test_paths:
             parsed_doc = parse_document(f)
+            for p in parsed_doc:
+                if "PRJNA" in p:
+                    print(p)
             test_ids_retrieved.append(scrape_ebi_ids(parsed_doc))
-            self.assertEqual(test_ids, test_ids_retrieved)
+
+        self.assertEqual(test_ids, test_ids_retrieved)
 
     def test_get_ebi_ids(self):
         expected_tuple = "SRP283872", "PRJNA660883"
@@ -397,7 +406,7 @@ class utilTest(unittest.TestCase):
 
         test_df_1 = pd.DataFrame(test_dict_1)
         test_df_2 = pd.DataFrame()
-        self.assertEquals(
+        self.assertEqual(
             set(expected_studies), set(detect_qiita_study(test_df_1))
         )
         self.assertFalse(detect_qiita_study(test_df_2))
@@ -407,14 +416,14 @@ class utilTest(unittest.TestCase):
             "abstract": "16S and metagenomic sequences from individuals with acute COVID19",
             "description": "PRJNA660883",
             "title": "human stool Metagenome from acute COVID19+ subjects",
-            "seq_method": ["16S"],
+            "seq_method": ["16s"],
         }
         parsed_dict = parse_details(_TEST_STUDY_DICT)
         self.assertEqual(expected_dict, parsed_dict)
 
     def test_scrape_seq_method(self):
         test_string_1 = "16S and metagenomic sequences from individuals with acute COVID19"
-        test_string_2 = "ITS a beautiful mix of methods 18Sit s1 16s"
+        test_string_2 = "ITS a beautiful mix of methods 16s"
         test_string_3 = "ITS1 18S"
         self.assertEqual(
             scrape_seq_method(test_string_1), scrape_seq_method(test_string_2)
@@ -423,6 +432,69 @@ class utilTest(unittest.TestCase):
             scrape_seq_method(test_string_2), scrape_seq_method(test_string_3)
         )
 
+    def test_unpack_fastq_ftp(self):
+        test_fastq_ftp_string = (
+            "ftp.sra.ebi.ac.uk/vol1/fastq/SRR126/080/"
+            + "SRR12672280/SRR12672280_1.fastq.gz;"
+            + "ftp.sra.ebi.ac.uk/vol1/fastq/SRR126/080/"
+            + "SRR12672280/SRR12672280_2.fastq.gz"
+        )
+        test_fastq_md5_string = (
+            "5c1da3b86d2bbb0d09e1f05cef0107f2;"
+            + "fe207ea59d80b5143e142050e37bbd11"
+        )
+        test_unpack_result = unpack_fastq_ftp(
+            test_fastq_ftp_string, test_fastq_md5_string
+        )
+        test_read_dict = {
+            "read_1": {
+                "ftp": test_fastq_ftp_string.split(";")[0],
+                "md5": test_fastq_md5_string.split(";")[0],
+            },
+            "read_2": {
+                "ftp": test_fastq_ftp_string.split(";")[1],
+                "md5": test_fastq_md5_string.split(";")[1],
+            },
+        }
+        self.assertEqual(test_unpack_result, test_read_dict)
+
+    def test_remove_index_read_file(self):
+        # set up files
+        test_dict = {}
+        test_fastq_path = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
+        
+        for r in range(1,4):
+            fq_src = (
+                _TEST_SUPPORT_DIR
+                + "/SAMN07663020.SRR6050387.R"
+                + str(r)
+                + ".ebi.fastq.gz"
+            )
+            fq_test = (
+                _TEST_OUTPUT_DIR
+                + "/SAMN07663020.SRR6050387.R"
+                + str(r)
+                + ".ebi.fastq.gz"
+            )
+            copy (fq_src,fq_test)
+            test_dict['read'+str(r)] = fq_test
+        
+        #print(test_fastq_path)
+        """
+        for r in range(1, 4):
+            r_clone = test_fastq_path.replace(
+                ".fastq.gz", ".R" + str(r) + ".ebi.fastq.gz"
+            )
+            get_fastq_head(test_fastq_path, r_clone, r * 10)
+            test_dict["read"+str(r)]= r_clone
+        """
+        # run test
+        remove_index_read_file(test_dict, "PAIRED")
+
+        # confirm behavior
+        self.assertTrue(path.isfile(test_dict["read1"]))
+        self.assertTrue(path.isfile(test_dict["read2"]))
+        self.assertFalse("read3" in test_dict.keys())
 
 if __name__ == "__main__":
     # begin the unittest.main()

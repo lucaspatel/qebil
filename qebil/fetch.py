@@ -14,7 +14,7 @@ from qebil.tools.fastq import (
 from qebil.tools.util import (
     compare_checksum,
     unpack_fastq_ftp,
-    remove_index_read_file
+    remove_index_read_file,
 )
 
 
@@ -35,11 +35,7 @@ def fetch_ebi_info(accession):
     xml_dict = {}
     # could use this list valid_stems=["PRJEB", "PRJNA", "ERP",
     # "SRP", "SRR", "SRS"] to check format before requesting url
-    url = (
-        "http://www.ebi.ac.uk/ena/data/view/"
-        + str(accession)
-        + "&display=xml"
-    )
+    url = "https://www.ebi.ac.uk/ena/browser/api/xml/" + str(accession)
     logger.info(url)
     try:
         response = requests.get(url)
@@ -105,8 +101,9 @@ def fetch_ebi_metadata(study_accession, fields=[]):
 
     study_df = pd.DataFrame()
 
-    host = "http://www.ebi.ac.uk/ena/data/warehouse/filereport?accession="
-    read_type = "&result=read_run&"
+    host = "https://www.ebi.ac.uk/ena/portal/api/filereport?accession="
+    read_type = "&result=read_run&limit=0&offset=0&download=true&"
+    # TODO: consider passing max-samples in here for limit to speed up process
     fields = ",".join(fields)
 
     url = "".join([host, study_accession, read_type, "fields=", fields])

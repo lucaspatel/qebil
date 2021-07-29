@@ -6,7 +6,7 @@ from qebil.output import (
     write_metadata_files,
     write_qebil_info_files,
     update_qebil_status,
-    write_file
+    write_file,
 )
 from qebil.core import Study
 from collections import OrderedDict
@@ -39,7 +39,7 @@ class OutputTest(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         # clean up the directory at the start
-        tidy_list = glob.glob(_TEST_OUTPUT_DIR + "/*.EBI_metadata.tsv")
+        tidy_list = glob.glob(_TEST_OUTPUT_DIR + "/*.tsv")
         for c in tidy_list:
             if path.isfile(c):
                 remove(c)
@@ -66,7 +66,7 @@ class OutputTest(unittest.TestCase):
             + "sequences from individuals with acute "
             + "COVID19\n"
             + "efo_ids = 1\n"
-            + "[optional]"
+            + "[optional]\n"
         )
 
         test_title_file_contents = (
@@ -465,7 +465,7 @@ class OutputTest(unittest.TestCase):
         """Tests the creation of sample and prep information files"""
         test_study = Study.from_remote(test_study_id, full_details=True)
         test_study.populate_preps()
-        #print("test_study columns: " + str(sorted(test_study.metadata.columns)))
+        # print("test_study columns: " + str(sorted(test_study.metadata.columns)))
         write_qebil_info_files(
             test_study,
             _TEST_OUTPUT_DIR,
@@ -494,7 +494,10 @@ class OutputTest(unittest.TestCase):
             header=0,
         )
         print("test_sample_df columns:" + str(sorted(test_sample_df.columns)))
-        print("created_sample_df columns:" + str(sorted(created_sample_df.columns)))
+        print(
+            "created_sample_df columns:"
+            + str(sorted(created_sample_df.columns))
+        )
         assert_frame_equal(
             test_sample_df.sort_index(axis=1),
             created_sample_df.sort_index(axis=1),
@@ -511,7 +514,7 @@ class OutputTest(unittest.TestCase):
     def test_write_file(self):
         """Helper method to write out text files"""
         test_string = "this is a test"
-        test_lines = [test_string+"\n", test_string]
+        test_lines = [test_string + "\n", test_string]
         test_file_name = "test.foo"
 
         write_file(test_file_name, test_string)
@@ -519,14 +522,13 @@ class OutputTest(unittest.TestCase):
         res_contents = res_file.readlines()[0]
         res_file.close()
         self.assertEqual(test_string, res_contents)
-        
 
-        write_file(test_file_name, "\n"+test_string, "a")
+        write_file(test_file_name, "\n" + test_string, "a")
         res_file = open(test_file_name, "r")
         res_contents = res_file.readlines()
         res_file.close()
         self.assertEqual(test_lines, res_contents)
-        
+
         # cleanup
         _CLEANUP_LIST.append(test_file_name)
 

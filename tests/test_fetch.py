@@ -6,11 +6,12 @@ from qebil.fetch import (
     fetch_fastq_files,
     fetch_fastqs,
     fetch_ebi_metadata,
-    retrieve_ftp_file
+    retrieve_ftp_file,
 )
 from qebil.core import Study
 import glob
 from os import remove, makedirs, path
+from shutil import copy
 import pandas as pd
 from qebil.log import setup_log
 
@@ -24,12 +25,14 @@ _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
 
 setup_output_dir(_TEST_OUTPUT_DIR)
 
+_CLEANUP_LIST = []
+
 
 def test_stage_output():
     if not path.isdir(_TEST_OUTPUT_DIR):
         makedirs(_TEST_OUTPUT_DIR)
     else:
-        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*")
+        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.*")
         for c in cleanup_list:
             remove(c)
 
@@ -70,7 +73,7 @@ class FetchTest(unittest.TestCase):
         }
         test_expected_reads = "5740751"
         test_raw_reads = fetch_fastq_files(
-            test_run_prefix, test_read_dict, _TEST_OUTPUT_DIR
+            test_run_prefix, test_read_dict, _TEST_OUTPUT_DIR, "PAIRED"
         )
         self.assertEqual(str(test_raw_reads), test_expected_reads)
 
@@ -1139,8 +1142,8 @@ class FetchTest(unittest.TestCase):
         self.assertTrue(path.isfile(test_local_fastq_path))
         self.assertEqual(test_checksum, test_checksum_2)
 
-        # cleanup
-        _CLEANUP_LIST.append(test_local_fastq_path)
+        # cleanup?
+
 
 if __name__ == "__main__":
     # begin the unittest.main()

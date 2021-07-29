@@ -52,11 +52,29 @@ def normalize_metadata(
     to Qiita
 
     Parameters
-    -----------
+    ----------
+    output_dir: string
+        directory for writing out search results and logs
+    prefix: string
+        string to prepend to results and logs
+    metadata-file: string
+        tsv or csv file containing the samples that should
+        be retrieved
+    validator: string
+        QIIMP-formatted .yml or .xlsx file to use for normalizing
+        and validating the metadata
+     prep_max: int
+        the maximum number of files to add to any given prep
+        info file
+    quiet: bool
+        whether to write out log messages to a file
+    qiita_standard: bool
+        whether to apply the Qiita-standard normalization for
+        terms using default_mappings.yml
 
-
+    \b
     Returns
-    -----------
+    ----------
     None
 
     """

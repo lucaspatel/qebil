@@ -8,7 +8,7 @@ import requests
 from shutil import move
 import urllib
 
-from qebil.tools.fastq import get_read_length
+from qebil.tools.fastq import get_read_length, get_read_count
 
 from qebil.log import logger
 
@@ -106,13 +106,15 @@ def parse_document(filepath):
         if request.status_code == 200:
             if filepath[-3:] == "pdf":
                 file_name, headers = urllib.request.urlretrieve(filepath)
-                document = PyPDF2.PdfFileReader(open(file_name, "rb"))
+                pdf_file = open(file_name, "rb")
+                document = PyPDF2.PdfFileReader(pdf_file)
                 for i in range(document.numPages):
                     page_to_print = document.getPage(i)
                     full_text += page_to_print.extractText()
                 tokens = [
                     t for t in re.split(r"\; |\, |\. | |\n|\t", full_text)
                 ]
+                pdf_file.close()
             else:
                 full_text = request.text
                 tokens = [
@@ -123,19 +125,21 @@ def parse_document(filepath):
                 ]
     else:
         if filepath[-3:] == "pdf":
-            document = PyPDF2.PdfFileReader(open(filepath, "rb"))
+            pdf_file = open(filepath, "rb")
+            document = PyPDF2.PdfFileReader(pdf_file)
             for i in range(document.numPages):
                 page_to_print = document.getPage(i)
-                full_text += page_to_print.extractTexit()
+                full_text += page_to_print.extractText()
             tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", full_text)]
+            pdf_file.close()
         else:
             text_file = open(filepath, "r")
             full_text = text_file.read()
-            text_file.close()
             tokens = [
                 t
                 for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
             ]
+            text_file.close()
 
     return tokens
 
@@ -346,11 +350,8 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
             logger.warning("No title found, using " + null_val + " for title")
 
         for k in result_dict.keys():
-            if result_dict[k] != null_val:
-                result_dict["seq_method"] += scrape_seq_method(
-                    result_dict["description"]
-                )
-
+            if result_dict[k] != null_val and k != "seq_method":
+                result_dict["seq_method"] += scrape_seq_method(result_dict[k])
     return result_dict
 
 
@@ -363,7 +364,8 @@ def scrape_seq_method(study_text):
         "its2",
         "shotgun",
     ]
-    tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", study_text.lower())]
+    study_text = study_text.lower()
+    tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", study_text)]
     found_methods = [t for meth in valid_methods for t in tokens if meth in t]
     return found_methods
 
@@ -446,19 +448,35 @@ def remove_index_read_file(fastq_dict, layout):
             + ". Skipping index read removal."
         )
     elif len(fastq_dict) <= 3:
+        index_file = ""
         read_length_dict = {}
         for f in fastq_dict.keys():
             read_length_dict[f] = get_read_length(fastq_dict[f])
 
-        read_lengths = list(read_length_dict.values())
+        read_lengths = [int(r) for r in list(read_length_dict.values())]
         if int(np.min(read_lengths)) >= int(np.mean(read_lengths)) / 2:
             logger.warning(
-                "Minimum and mean read lengths are less than 2-fold different."
-                + " Could not identify index read file for"
+                "Minimum and mean read lengths are less than 2-fold different for."
                 + file_prefix
+                + " Attempting to compare read counts"
             )
+            read_count_dict = {}
+
+            for f in fastq_dict.keys():
+                read_count_dict[f] = get_read_count(fastq_dict[f])
+            read_counts = [int(r) for r in list(read_count_dict.values())]
+            if int(np.min(read_counts)) == int(np.mean(read_counts)):
+                logger.warning(
+                    +" Could not identify index read file for"
+                    + file_prefix
+                    + " read counts and length same for all files."
+                )
+            else:
+                index_file = min(read_count_dict, key=read_count_dict.get)
         else:
             index_file = min(read_length_dict, key=read_length_dict.get)
+
+        if index_file != "":
             logger.info(
                 index_file
                 + " identified as index for "

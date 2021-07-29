@@ -12,6 +12,7 @@ from qebil.tools.fastq import (
 from qebil.output import write_metadata_files
 from qebil.tools.util import unpack_fastq_ftp
 
+
 def deplete_on_the_fly(
     study, cpus=4, output_dir="./", keep_files=True, prefix="", max_prep=250
 ):
@@ -100,7 +101,7 @@ def deplete_on_the_fly(
         ebi_dict = unpack_fastq_ftp(
             md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
         )
-        
+
         if not raw_reads.isnumeric():
             # this value should only be set if downloaded
             md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
@@ -174,7 +175,7 @@ def deplete_on_the_fly(
                     prep_max=max_prep,
                 )
 
-    return md
+    return study
 
 
 def run_fastp(

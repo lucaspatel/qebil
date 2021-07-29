@@ -79,7 +79,7 @@ def load_metadata(filename):
                 if not found_sn:
                     if s in tmp_df.columns:
                         found_sn = True
-                        tmp_df["sample_name"] = tmp_df[s]
+                        tmp_df = tmp_df.rename(columns={s: "sample_name"})
                         logger.warning("'sample_name' mapped from: " + s)
 
         if "sample_name" not in list(tmp_df.columns):
@@ -104,7 +104,7 @@ def load_metadata(filename):
                     if not found_sn:
                         if s in tmp_df.columns:
                             found_sn = True
-                            tmp_df["sample_name"] = tmp_df[s]
+                            tmp_df = tmp_df.rename(columns={s: "sample_name"})
                             logger.warning("'sample_name' mapped from: " + s)
 
         if len(tmp_df) > 0 and "sample_name" in list(tmp_df.columns):
@@ -168,6 +168,7 @@ def format_prep_type(row, sample_name, seq_methods=[]):
     amplicon_list = ["AMPLICON", "OTHER"]
     amplicon_dict = {
         "16s rna": "16S",
+        "16s rrna": "16S",
         "16s": "16S",
         "16s rdna": "16S",
         "16s rna": "16S",
@@ -727,6 +728,7 @@ def check_qebil_restricted_column(col):
 
     restricted_term_lower = [term.lower() for term in restricted_qebil_terms]
 
+    col = col.lower()
     if col in restricted_term_lower:
         logger.warning(
             col

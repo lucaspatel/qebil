@@ -3,7 +3,7 @@ from qebil.normalize import (
     apply_validation,
     normalize_lat_lon,
     add_emp_info,
-    split_lat_lon
+    split_lat_lon,
 )
 import unittest
 from pandas.testing import assert_frame_equal
@@ -22,10 +22,9 @@ setup_output_dir(_TEST_OUTPUT_DIR)
 
 
 class NormalizeTest(unittest.TestCase):
-    
     def setUp(self):
         self.maxDiff = None
-        
+
     def test_qiimp_parser(self):
         """Tests parsing of Qiimp-format yaml or xlsx files to obtain a dictionary of
         rules for metadata normalization
@@ -378,35 +377,50 @@ class NormalizeTest(unittest.TestCase):
         }
         expected_df = pd.DataFrame.from_dict(
             {
-                "qebil_collection_device": ["not provided","not provided"],
-                "qebil_collection_method": ["not provided","not provided"],
-                "qebil_collection_timestamp": ["not provided","not provided"],
-                "qebil_description": ["not provided","not provided"],
-                "qebil_dna_extracted": ["not provided","not provided"],
-                "qebil_elevation": ["not provided","not provided"],
-                "qebil_elevation_units": ["meters","meters"],
-                "qebil_empo_1": ["not provided","not provided"],
-                "qebil_empo_2": ["not provided","not provided"],
-                "qebil_empo_3": ["not provided","not provided"],
-                "qebil_env_biome": ["not provided","not provided"],
-                "qebil_env_feature": ["not provided","not provided"],
-                "qebil_env_material": ["not provided","not provided"],
-                "qebil_env_package": ["not provided","not provided"],
-                "qebil_geo_loc_name": ["not provided","not provided"],
-                "qebil_host_subject_id": ["not provided","not provided"],
-                "qebil_latitude": ["not provided","not provided"],
-                "qebil_latitude_units": ["Decimal degrees","Decimal degrees"],
-                "qebil_longitude": ["not provided","not provided"],
-                "qebil_longitude_units": ["Decimal degrees","Decimal degrees"],
-                "qebil_physical_specimen_location": ["not provided","not provided"],
-                "qebil_physical_specimen_remaining": ["not provided","not provided"],
+                "qebil_collection_device": ["not provided", "not provided"],
+                "qebil_collection_method": ["not provided", "not provided"],
+                "qebil_collection_timestamp": [
+                    "not provided",
+                    "not provided",
+                ],
+                "qebil_description": ["not provided", "not provided"],
+                "qebil_dna_extracted": ["not provided", "not provided"],
+                "qebil_elevation": ["not provided", "not provided"],
+                "qebil_elevation_units": ["meters", "meters"],
+                "qebil_empo_1": ["not provided", "not provided"],
+                "qebil_empo_2": ["not provided", "not provided"],
+                "qebil_empo_3": ["not provided", "not provided"],
+                "qebil_env_biome": ["not provided", "not provided"],
+                "qebil_env_feature": ["not provided", "not provided"],
+                "qebil_env_material": ["not provided", "not provided"],
+                "qebil_env_package": ["not provided", "not provided"],
+                "qebil_geo_loc_name": ["not provided", "not provided"],
+                "qebil_host_subject_id": ["not provided", "not provided"],
+                "qebil_latitude": ["not provided", "not provided"],
+                "qebil_latitude_units": [
+                    "Decimal degrees",
+                    "Decimal degrees",
+                ],
+                "qebil_longitude": ["not provided", "not provided"],
+                "qebil_longitude_units": [
+                    "Decimal degrees",
+                    "Decimal degrees",
+                ],
+                "qebil_physical_specimen_location": [
+                    "not provided",
+                    "not provided",
+                ],
+                "qebil_physical_specimen_remaining": [
+                    "not provided",
+                    "not provided",
+                ],
                 "prep_file": ["AMBIGUOUS_0", "Metagenomic_0"],
                 "sample_name": ["sample1", "sample2"],
-                "qebil_sample_type": ["other","other"],
-                "qebil_scientific_name": ["metagenome","metagenome"],
-                "qebil_taxon_id": ["256318","256318"],
-                "qebil_title": ["not provided","not provided"],
-                "qebil_tube_id": ["not provided","not provided"],
+                "qebil_sample_type": ["other", "other"],
+                "qebil_scientific_name": ["metagenome", "metagenome"],
+                "qebil_taxon_id": ["256318", "256318"],
+                "qebil_title": ["not provided", "not provided"],
+                "qebil_tube_id": ["not provided", "not provided"],
             }
         )
         test_df = pd.DataFrame.from_dict(
@@ -470,11 +484,13 @@ class NormalizeTest(unittest.TestCase):
             + "title has no default in yaml template. Encoding as 'not provided'\n"
             + "tube_id not found in metadata. Attempting to generate qebil_tube_id from available sources.\n"
             + "tube_id has no default in yaml template. Encoding as 'not provided'\n"
-                       )
+        )
         result_df, result_msg = apply_validation(test_df, test_yml)
 
         self.assertEqual(result_msg, expected_msg)
-        assert_frame_equal(expected_df.sort_index(axis=1), result_df.sort_index(axis=1))
+        assert_frame_equal(
+            expected_df.sort_index(axis=1), result_df.sort_index(axis=1)
+        )
 
         # Addtional potential tests:
         # need a column that will test if the key from the validator is not in the test_df
@@ -563,9 +579,7 @@ class NormalizeTest(unittest.TestCase):
         for k in test_dict.keys():
             self.assertEqual(k, split_lat_lon(k))
             self.assertEqual(test_dict[k]["lat"], split_lat_lon(k, "lat"))
-            self.assertEqual(
-                test_dict[k]["long"], split_lat_lon(k, "long")
-            )
+            self.assertEqual(test_dict[k]["long"], split_lat_lon(k, "long"))
 
         self.assertEqual(
             test_non_standard, split_lat_lon(test_non_standard, "lat")

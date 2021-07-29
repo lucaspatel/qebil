@@ -99,7 +99,9 @@ class metadataTest(unittest.TestCase):
             },
             "run_prefix": {0: "SAMN16049500.SRR12672280"},
         }
-        expected_df = pd.DataFrame.from_dict(expected_dict)
+        expected_df = pd.DataFrame.from_dict(expected_dict).set_index(
+            "sample_name"
+        )
         qebil_df = load_metadata(
             _TEST_SUPPORT_DIR + "/test_study_valid_qiita.tsv"
         )
@@ -108,6 +110,8 @@ class metadataTest(unittest.TestCase):
             _TEST_SUPPORT_DIR + "/test_study_valid_q2.csv"
         )
 
+        print(str(expected_df.columns))
+        print(str(q2_df.columns))
         assert_frame_equal(expected_df, qebil_df)
         assert_frame_equal(expected_df, q2_df)
         assert_frame_equal(expected_df, qebil_csv_df)
@@ -115,8 +119,8 @@ class metadataTest(unittest.TestCase):
     def test_format_prep_type(self):
         test_ambig_dict = {"POOLCLONE": "AMBIGUOUS", "test": "AMBIGUOUS"}
         test_genome_dict = {
-            "CLONE": "Genome Isolate",
-            "WCS": "Genome Isolate",
+            "CLONE": "Genome_Isolate",
+            "WCS": "Genome_Isolate",
         }
         test_meta_g_dict = {
             "WGS": "Metagenomic",
@@ -237,7 +241,7 @@ class metadataTest(unittest.TestCase):
                     "16S ",
                 ],
             }
-        )
+        ).set_index("sample_name")
         for index, row in test_16s_df.iterrows():
             self.assertEqual(format_prep_type(row, index), "16S")
 
@@ -274,7 +278,6 @@ class metadataTest(unittest.TestCase):
     def test_set_criteria(self):
         valid_list_lower = ["test1", "test2"]
         valid_list_upper = ["TEST1", "TEST2"]
-        
 
         test_selection_dict = set_criteria(valid_list_lower, valid_list_upper)
         self.assertEqual(
