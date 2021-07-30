@@ -596,13 +596,14 @@ def fetch_project(
                     suffix = ""
 
                 if human_removal:
-                    proj.metadata = deplete_on_the_fly(
+                    proj = deplete_on_the_fly(
                         proj,
                         cpus,
                         output_dir,
                         keep_files,
-                        proj_prefix,
+                        prefix,
                         prep_max,
+                        correct_index
                     )
                     fastq_prefix = ".filtered"
                 elif download_fastq:
@@ -621,5 +622,5 @@ def fetch_project(
                     suffix,
                     qiita,
                     prep_max,
-                    fastq_prefix,
+                    fastq_prefix=fastq_prefix,
                 )

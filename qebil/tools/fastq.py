@@ -91,7 +91,12 @@ def get_read_count(forward_read, reverse_read=""):
             read_2_count = res
 
             if read_2_count != read_1_count:
-                return "fqtools error. R1 reads != R2 reads"
+                logger.warning("fqtools error. R1 reads: "
+                               + str(read_1_count)
+                               + " != R2 reads:"
+                               + str(read_2_count)
+                              )
+                return "fqtools error"
             else:
                 logger.info("fqtools finished.")
                 return read_1_count
@@ -145,7 +150,7 @@ def blast_for_type(fastq_file, db_dict={}):
 
     for db_type in db_dict.keys():
         db = db_dict[db_type]
-        tmp_res = "./tmp_" + db_type + ".tsv"
+        tmp_res = fastq_file + ".tmp_" +db_type + ".tsv"
         blastn_args = [
             "blastn",
             "-query",

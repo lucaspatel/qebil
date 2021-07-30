@@ -210,7 +210,8 @@ def write_metadata_files(
             if output_qiita:
                 # use helper to split into info files
                 write_qebil_info_files(
-                    proj, output_dir, file_prefix, suffix, prep_max
+                    proj, output_dir, file_prefix, suffix, prep_max,
+                    True, fastq_prefix
                 )
                 suffix = ".QIIME_mapping_file"
 
@@ -397,7 +398,12 @@ def write_qebil_info_files(
                     )
                     if len(f_list) == 0:
                         file_status_dict["MISSING"]["files"].append(str(f))
-                        logger.warning("fastq file(s) missing for " + str(f))
+                        logger.warning(
+                            "fastq file(s) missing for "
+                            + str(f)
+                            + " with suffix"
+                            + fastq_prefix
+                        )
                     elif len(f_list) == 1:
                         if layout == "SINGLE":
                             file_status_dict["VALID"]["files"].append(str(f))
