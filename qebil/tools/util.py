@@ -44,18 +44,19 @@ def load_project_file(filepath):
     return add_list
 
 
-def compare_checksum(filepath, md5_value):
-    """Compares the expected and actual checksum of the file
+def get_checksum(filepath, compare_md5=""):
+    """Gets the checksum of a file, comparing with expected value if provided
 
-    This function compares the expected md5 checksum with the md5
-    checksum from the specified local file.
-    Returns False if they do not match or the checksum
-    value if they do.
+    Obtains the checksum of a file and compares with the expected
+    md5 checksum if provided. Returns False if they do not match
+    or the checksum value if they do.
 
     Parameters
     ----------
     filepath: string
         the path to the file or URL to be scraped
+    compare_md5: string
+        expected md5 checksum value
 
     Returns
     ---------
@@ -68,8 +69,10 @@ def compare_checksum(filepath, md5_value):
         fq_contents = fq.read()
         fq.close()
         local_checksum = hashlib.md5(fq_contents).hexdigest()
+        if compare_md5 == "":
+            compare_md5 = local_checksum
 
-        if md5_value != local_checksum:
+        if compare_md5 != local_checksum:
             return False
         else:
             return local_checksum
@@ -428,7 +431,9 @@ def remove_index_read_file(fastq_dict, layout):
     """
     new_fastq_dict = fastq_dict
     file_prefix = (
-        fastq_dict["read1"].split("/")[-1].replace(".R1.ebi.fastq.gz", "")
+        fastq_dict["read1"]["fp"]
+        .split("/")[-1]
+        .replace(".R1.ebi.fastq.gz", "")
     )
     if layout.lower() == "single":
         expected_files = 1
@@ -448,30 +453,45 @@ def remove_index_read_file(fastq_dict, layout):
             + ". Skipping index read removal."
         )
     elif len(fastq_dict) <= 3:
+        logger.info(
+            "More reads ("
+            + str(len(fastq_dict))
+            + ") than expected for layout "
+            + layout
+            + " Attempting to identify and remove index file"
+        )
+
         index_file = ""
         read_length_dict = {}
         for f in fastq_dict.keys():
-            read_length_dict[f] = get_read_length(fastq_dict[f])
+            read_length_dict[f] = get_read_length(fastq_dict[f]["fp"])
 
         read_lengths = [int(r) for r in list(read_length_dict.values())]
+
         if int(np.min(read_lengths)) >= int(np.mean(read_lengths)) / 2:
             logger.warning(
-                "Minimum and mean read lengths are less than 2-fold different for."
+                "Minimum and mean read lengths are <2-fold different for."
                 + file_prefix
-                + " Attempting to compare read counts"
+                + " Attempting to compare read counts instead."
             )
+
             read_count_dict = {}
 
             for f in fastq_dict.keys():
-                read_count_dict[f] = get_read_count(fastq_dict[f])
+                print(f)
+                read_count_dict[f] = get_read_count(fastq_dict[f]["fp"])
+
             read_counts = [int(r) for r in list(read_count_dict.values())]
+
             if int(np.min(read_counts)) == int(np.mean(read_counts)):
+                # this is the case when all three reads have the same count
                 logger.warning(
                     +" Could not identify index read file for"
                     + file_prefix
                     + " read counts and length same for all files."
                 )
             else:
+                print(read_count_dict)
                 index_file = min(read_count_dict, key=read_count_dict.get)
         else:
             index_file = min(read_length_dict, key=read_length_dict.get)
@@ -483,24 +503,33 @@ def remove_index_read_file(fastq_dict, layout):
                 + file_prefix
                 + " Removing and renaming other file(s)."
             )
-            remove(fastq_dict[index_file])
+            remove(fastq_dict[index_file]["fp"])
             index_read_num = index_file[-1]
             if int(index_read_num) == 1:
                 # typically read1 is expected to be the index read if present
-                move(fastq_dict["read2"], fastq_dict[index_file])
-                new_fastq_dict["read1"] = fastq_dict[index_file]
+                # move read2 to replace read1's filepath
+                move(fastq_dict["read2"]["fp"], fastq_dict[index_file]["fp"])
+                # update read1's md5 to be that of the former read2
+                new_fastq_dict["read1"]["md5"] = fastq_dict["read2"]["md5"]
                 if "read3" in fastq_dict.keys():
-                    move(fastq_dict["read3"], fastq_dict["read2"])
+                    # move read3 to the now removed read2 filepath
+                    move(fastq_dict["read3"]["fp"], fastq_dict["read2"]["fp"])
+                    # update read2's md to that of the former read3
+                    new_fastq_dict["read2"]["md5"] = fastq_dict["read3"]["md5"]
+                    # remove read3 from the dict
                     del new_fastq_dict["read3"]
             elif "read3" in fastq_dict.keys():
-                # if read2 is removed and there were only two, no action
+                # if read2 is removed and there were only two, no action needed
                 # otherwise move read3 to read 2
                 move(fastq_dict["read3"], fastq_dict["read2"])
+                # update read2's md to that of the former read3
+                new_fastq_dict["read2"]["md5"] = fastq_dict["read3"]["md5"]
+                # remove read3 from the dict
                 del new_fastq_dict["read3"]
     else:
         logger.warning(
             "Removing index read files not implemented for >3 reads."
         )
-        # TODO: handle samples with 4 reads?
+        # TODO: handle samples with 4 reads (two index files?
 
     return new_fastq_dict

@@ -129,7 +129,7 @@ def write_config_file(xml_dict, prefix="", null_val="XXEBIXX"):
     abstract = "\nstudy_abstract = " + desc_dict["abstract"]
 
     # setting alias to project ID for Qiita tracking
-    alias = "\nstudy_alias = " + str(proj_id) + "; "
+    alias = "\nstudy_alias = " + str(proj_id)
 
     # starting description with study ID
     description = "\nstudy_description = " + str(study_id) + "; "
@@ -210,8 +210,13 @@ def write_metadata_files(
             if output_qiita:
                 # use helper to split into info files
                 write_qebil_info_files(
-                    proj, output_dir, file_prefix, suffix, prep_max,
-                    True, fastq_prefix
+                    proj,
+                    output_dir,
+                    file_prefix,
+                    suffix,
+                    prep_max,
+                    True,
+                    fastq_prefix,
                 )
                 suffix = ".QIIME_mapping_file"
 
@@ -344,8 +349,11 @@ def write_qebil_info_files(
                         if min_prep == "target_gene":
                             # now that we're blasting to determine type,
                             # add note to this effect since we can only
-                            # be in this loop if the type a specific
+                            # be in this loop if the type is a specific
                             # amplicon prep despite not having a target_gene
+                            # we are not updating the target_gene at this point
+                            # but could do so from the blast_for_type loop
+                            # in the future
                             blasted_samples += list(prep_df["run_prefix"])
 
             # now write out the prep info files
@@ -444,7 +452,6 @@ def write_qebil_info_files(
                             + str(f)
                             + "with layout "
                             + layout
-                            + " Try running again with --correct-index"
                         )
 
                 # see if there are valid files first

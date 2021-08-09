@@ -156,9 +156,12 @@ def check_existing_metadata(proj, output_dir="./", prefix=""):
 
     if path.isfile(qiime_md_file):
         local_md = qiime_md_file
+        # logger.info("Local QIIME file detected. Loading study from local")
     elif path.isfile(ebi_md_file):
         local_md = ebi_md_file
-
+        # logger.info(
+        #    "Local EBI metadata file detected. Loading study from local"
+        # )
     if local_md != "":
         tmp_study = Study(load_metadata(local_md), proj)
 
@@ -603,7 +606,7 @@ def fetch_project(
                         keep_files,
                         prefix,
                         prep_max,
-                        correct_index
+                        correct_index,
                     )
                     fastq_prefix = ".filtered"
                 elif download_fastq:

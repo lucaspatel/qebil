@@ -7,7 +7,7 @@ import unittest
 from qebil.tools.fastq import get_fastq_head
 
 from qebil.tools.util import (
-    compare_checksum,
+    get_checksum,
     detect_qiita_study,
     get_ebi_ids,
     load_project_file,
@@ -349,11 +349,11 @@ class utilTest(unittest.TestCase):
             test_load_project_list, test_load_project_list_no_header
         )
 
-    def test_compare_checksum(self):
+    def test_get_checksum(self):
         test_local_fastq_path = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
         expected_md5 = "06445ed5341e3779ac1d5230c787c538"
         self.assertTrue(path.isfile(test_local_fastq_path))
-        md5checksum_res = compare_checksum(
+        md5checksum_res = get_checksum(
             test_local_fastq_path, expected_md5
         )
         self.assertEqual(expected_md5, md5checksum_res)
@@ -366,7 +366,7 @@ class utilTest(unittest.TestCase):
             "https://www.nature.com/articles/s41598-021-83922-6.pdf"
         )
 
-        self.assertEqual(len(tokens_html), 84476)  # this changes a lot...
+        self.assertEqual(len(tokens_html), 84475)  # this changes a lot...
         self.assertEqual(len(tokens_pdf), 15771)
 
     def test_scrape_ebi_ids(self):
@@ -477,7 +477,9 @@ class utilTest(unittest.TestCase):
                 + ".ebi.fastq.gz"
             )
             copy (fq_src,fq_test)
-            test_dict['read'+str(r)] = fq_test
+            test_dict['read'+str(r)] = {}
+            test_dict['read'+str(r)]['fp'] = fq_test
+            test_dict['read'+str(r)]['md5'] = get_checksum(fq_test)
         
         #print(test_fastq_path)
         """
@@ -492,8 +494,8 @@ class utilTest(unittest.TestCase):
         remove_index_read_file(test_dict, "PAIRED")
 
         # confirm behavior
-        self.assertTrue(path.isfile(test_dict["read1"]))
-        self.assertTrue(path.isfile(test_dict["read2"]))
+        self.assertTrue(path.isfile(test_dict["read1"]['fp']))
+        self.assertTrue(path.isfile(test_dict["read2"]['fp']))
         self.assertFalse("read3" in test_dict.keys())
 
 if __name__ == "__main__":

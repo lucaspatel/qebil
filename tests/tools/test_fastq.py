@@ -1,7 +1,7 @@
 from os import path, remove
 import unittest
 
-from qebil.tools.util import setup_output_dir, compare_checksum
+from qebil.tools.util import setup_output_dir, get_checksum
 
 from qebil.tools.fastq import (
     get_read_count,
@@ -80,10 +80,10 @@ class fastqTest(unittest.TestCase):
         self.assertEqual(get_read_count(head_fq_path), "100")
         self.assertEqual(
             test_fastq_path_100_md5,
-            compare_checksum(head_fq_path, test_fastq_path_100_md5),
+            get_checksum(head_fq_path, test_fastq_path_100_md5),
         )
         self.assertFalse(
-            compare_checksum(test_fastq_path_10, test_fastq_path_100_md5)
+            get_checksum(test_fastq_path_10, test_fastq_path_100_md5)
         )
 
         # cleanup
@@ -103,7 +103,7 @@ class fastqTest(unittest.TestCase):
         self.assertEqual(get_read_count(fa_path), "fqtools error")
         self.assertEqual(
             test_fasta_path_md5,
-            compare_checksum(fa_path, test_fasta_path_md5),
+            get_checksum(fa_path, test_fasta_path_md5),
         )
 
         # cleanup

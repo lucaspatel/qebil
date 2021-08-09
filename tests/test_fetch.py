@@ -75,7 +75,7 @@ class FetchTest(unittest.TestCase):
         test_raw_reads = fetch_fastq_files(
             test_run_prefix, test_read_dict, _TEST_OUTPUT_DIR, "PAIRED"
         )
-        self.assertEqual(str(test_raw_reads), test_expected_reads)
+        self.assertEqual(str(test_raw_reads[0]), test_expected_reads)
 
         # TODO: find corrupted downloads and study with > 2 reads to test error message
 

@@ -582,7 +582,7 @@ class Study:
 
         self.metadata = md
 
-    def populate_preps(self):
+    def populate_preps(self, overwrite=False):
         """Populates the metadata with the information needed for Qiita
 
         Stages the study with qebil_prep_file entries in the metadata to
@@ -610,6 +610,12 @@ class Study:
 
         if len(md) == 0:
             logger.error("Failed to create preps, no samples in metadata")
+        elif "qebil_prep_file" in md.columns:
+            logger.warning(
+                "qebil_prep_file found in metadata, "
+                + "skipping population of preps. "
+                + " Pass overwrite=True to force generation."
+            )
         else:
             try:
                 md["platform"] = md["instrument_platform"]

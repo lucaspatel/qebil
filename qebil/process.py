@@ -14,7 +14,13 @@ from qebil.tools.util import unpack_fastq_ftp
 
 
 def deplete_on_the_fly(
-    study, cpus=4, output_dir="./", keep_files=True, prefix="", max_prep=250, remove_index = True
+    study,
+    cpus=4,
+    output_dir="./",
+    keep_files=True,
+    prefix="",
+    max_prep=250,
+    remove_index=True,
 ):
     """Processes a study sample-by-sample to filter and deplete human reads
 
@@ -117,7 +123,7 @@ def deplete_on_the_fly(
                 prefix,
                 prep_max=max_prep,
             )
-        if not filtered_reads.isnumeric():
+        if not filtered_reads.isnumeric() and raw_reads.isnumeric():
             # this value should only be set if filtered
             md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
                 run_prefix, raw_reads, model, output_dir, cpus, keep_files
@@ -138,7 +144,7 @@ def deplete_on_the_fly(
                 output_dir,
                 prefix,
                 prep_max=max_prep,
-                fastq_prefix = ".fastp"
+                fastq_prefix=".fastp",
             )
 
         # check to make sure the data can be host_depleted
@@ -152,7 +158,7 @@ def deplete_on_the_fly(
             )
         else:
             # this value should only be set if host filtering finished
-            if not mb_reads.isnumeric():
+            if not mb_reads.isnumeric() and filtered_reads.isnumeric():
                 md.at[index, "qebil_non_host_reads"] = run_host_depletion(
                     run_prefix,
                     filtered_reads,
@@ -169,9 +175,9 @@ def deplete_on_the_fly(
                         mb_reads
                     ) / int(filtered_reads)
                     logger.info(
-                    "frac mbDNA: "
-                    + str(md.at[index, "qebil_frac_non_host_reads"])
-                )
+                        "frac mbDNA: "
+                        + str(md.at[index, "qebil_frac_non_host_reads"])
+                    )
                 # need to update metadata to not lose progress
                 study.metadata = md
                 write_metadata_files(
@@ -179,7 +185,7 @@ def deplete_on_the_fly(
                     output_dir,
                     prefix,
                     prep_max=max_prep,
-                    fastq_prefix = ".filtered"
+                    fastq_prefix=".filtered",
                 )
 
     return study
@@ -403,6 +409,7 @@ def run_host_depletion(
 
     # list to be used to confirm things worked as expected
     confirm_list = []
+    mb_reads = "minimap2 error"
 
     forward_reads = glob.glob(
         output_dir + "/" + run_prefix + ".R1.fastp.fastq.gz"
@@ -491,7 +498,7 @@ def run_host_depletion(
             )
         else:
             logger.info("Starting minimap2 depletion.")
-            f = open(output_dir + '/' + run_prefix + "_minimap2.start", "a")
+            f = open(output_dir + "/" + run_prefix + "_minimap2.start", "a")
             f.close()
 
             minimap2_ps = Popen(minimap2_args, stdout=PIPE, stderr=PIPE)
@@ -500,7 +507,7 @@ def run_host_depletion(
             )
             minimap2_ps.stdout.close()
             stf_ps.communicate()
-            remove(output_dir + '/' + run_prefix + "_minimap2.start")
+            remove(output_dir + "/" + run_prefix + "_minimap2.start")
 
         # now make sure the output files are valid with fastqs
         confirm = True

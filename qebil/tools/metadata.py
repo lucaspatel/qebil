@@ -398,10 +398,10 @@ def detect_merger_column(base_md, supp_md):
     auto_col_list = []
     num_base_samples = len(base_md)
     num_supp_samples = len(supp_md)
-    
+
     for col in supp_md.columns:
         num_supp_unique = supp_md[col].nunique()
-        
+
         if num_supp_unique == num_supp_samples:
             if col in base_md.columns:
                 base_unique = base_md[col].nunique()
@@ -453,7 +453,7 @@ def merge_metadata(base_md, supp_md, supp_col="sample_name"):
     """
     merged_df = base_md.reset_index()
     merged_df = merged_df.rename(columns={"index": "sample_name"})
-    
+
     # will return base_md if merging fails
     num_supp_samples = len(supp_md)
 
@@ -464,10 +464,10 @@ def merge_metadata(base_md, supp_md, supp_col="sample_name"):
             supp_col = detect_merger_column(base_md, supp_md)
 
         if supp_col in base_md.columns:
-            #subset supp_md before update and merge to only overlapping IDs
+            # subset supp_md before update and merge to only overlapping IDs
             base_ids = list(merged_df[supp_col].unique())
             supp_md = supp_md[supp_md[supp_col].isin(base_ids)]
-            
+
             # update columns with values from supplement
             merged_df.update(supp_md)
 
@@ -480,21 +480,21 @@ def merge_metadata(base_md, supp_md, supp_col="sample_name"):
             supp_df[supp_col] = supp_md[supp_col]
 
             merged_df = merged_df.merge(supp_df, how="left", on=supp_col)
-            
-            #remove columns that are entirely not provided
+
+            # remove columns that are entirely not provided
             test_na_cols = merged_df.columns
             for col in test_na_cols:
                 unique = list(merged_df[col].unique())
-                if len(unique) == 1 and unique[0] == 'not provided':
-                    merged_df = merged_df.drop([col],axis=1)
+                if len(unique) == 1 and unique[0] == "not provided":
+                    merged_df = merged_df.drop([col], axis=1)
         else:
             logger.warning(
                 "Omitting merge of supplemental info. Column '"
                 + supp_col
                 + "' not found in base metadata."
             )
-            
-    merged_df = merged_df.set_index('sample_name')
+
+    merged_df = merged_df.set_index("sample_name")
     return merged_df
 
 
@@ -592,7 +592,7 @@ def augment_metadata(base_md, add_md_list=[], merge_col="", emp=False):
         for f in add_md_list:
             data_loaded = False
             supp_df = load_metadata(f)
-            
+
             if len(supp_df) > 0:
                 data_loaded = True
             elif not path.isfile(f):
@@ -604,30 +604,33 @@ def augment_metadata(base_md, add_md_list=[], merge_col="", emp=False):
                     "Supplemental metadata could not be loaded. "
                     + " Trying again with flexible load."
                 )
-                supp_df = pd.read_csv(f, sep='\t', low_memory=False)
+                supp_df = pd.read_csv(f, sep="\t", low_memory=False)
                 if len(supp_df.columns) > 1:
-                    logger.info("Loaded dataframe from file: "
-                                + f
-                                + " as tsv with columns: " 
-                                + str(supp_df.columns)
-                               )
+                    logger.info(
+                        "Loaded dataframe from file: "
+                        + f
+                        + " as tsv with columns: "
+                        + str(supp_df.columns)
+                    )
                     data_loaded = True
                 else:
                     supp_df = pd.read_csv(f, low_memory=False)
                 if len(supp_df.columns) > 1:
-                    logger.info("Loaded dataframe from file: "
-                                + f
-                                + " as csv with columns: " 
-                                + str(supp_df.columns)
-                               )
+                    logger.info(
+                        "Loaded dataframe from file: "
+                        + f
+                        + " as csv with columns: "
+                        + str(supp_df.columns)
+                    )
                     data_loaded = True
                 else:
-                    logger.warning("Supplemental metadata could not be loaded."
-                                   + " Check path and format and try again."
-                                   + "  Skipping merge."
+                    logger.warning(
+                        "Supplemental metadata could not be loaded."
+                        + " Check path and format and try again."
+                        + "  Skipping merge."
                     )
             if data_loaded:
-                if supp_col != 'auto' and supp_col not in supp_df.columns:
+                if supp_col != "auto" and supp_col not in supp_df.columns:
                     logger.warning(
                         "Loaded dataframe from file: "
                         + f
@@ -637,7 +640,6 @@ def augment_metadata(base_md, add_md_list=[], merge_col="", emp=False):
                     )
                 else:
                     supp_df_dict[f] = supp_df
-            
 
     # merge supplemental metadata
     for md in supp_df_dict.keys():

@@ -12,7 +12,7 @@ from qebil.tools.fastq import (
 )
 
 from qebil.tools.util import (
-    compare_checksum,
+    get_checksum,
     unpack_fastq_ftp,
     remove_index_read_file,
 )
@@ -164,7 +164,9 @@ def fetch_fastq_files(
         )
         remote_fp = ftp_dict[read]["ftp"]
         remote_md5 = ftp_dict[read]["md5"]
-        local_read_dict["read" + str(read_num)] = local_fq_path
+        local_read_dict["read" + str(read_num)] = {}
+        local_read_dict["read" + str(read_num)]["fp"] = local_fq_path
+
         if run_prefix in failed_list:
             logger.warning(
                 "Skipping download of " + remote_fp + " Paired file failed."
@@ -199,31 +201,35 @@ def fetch_fastq_files(
                 )
     else:
         if remove_index_file:
-            logger.info("Removing index file")
-            remove_index_read_file(local_read_dict, lib_layout)
+            removed_index_dict = remove_index_read_file(
+                local_read_dict, lib_layout
+            )
+            if len(removed_index_dict) < len(local_read_dict):
+                for f in local_read_dict.keys():
+                    local_read_dict = removed_index_dict
 
         if len(local_read_dict) == 1:
-            raw_reads = get_read_count(local_read_dict["read1"])
+            raw_reads = get_read_count(local_read_dict["read1"]["fp"])
             if raw_reads == "fqtools error":
                 logger.warning(
                     "Check file validity failed for "
                     + str(local_read_dict["read1"])
                     + "Removing."
                 )
-                remove(local_read_dict["read1"])
+                remove(local_read_dict["read1"]["fp"])
                 raw_reads = "error"
         elif len(local_read_dict) == 2:
             raw_reads = get_read_count(
-                local_read_dict["read1"], local_read_dict["read2"]
+                local_read_dict["read1"]["fp"], local_read_dict["read2"]["fp"]
             )
             if raw_reads == "fqtools error":
                 logger.warning(
                     "Check file validity failed for "
-                    + str(local_read_dict["read1"].replace("R1", "R*"))
+                    + str(local_read_dict["read1"]["fp"].replace("R1", "R*"))
                     + "Removing."
                 )
-                remove(local_read_dict["read1"])
-                remove(local_read_dict["read2"])
+                remove(local_read_dict["read1"]["fp"])
+                remove(local_read_dict["read2"]["fp"])
                 raw_reads = "error"
         else:
             logger.warning(
@@ -233,10 +239,10 @@ def fetch_fastq_files(
             )
             raw_reads = "error"
 
-    return raw_reads
+    return raw_reads, local_read_dict
 
 
-def fetch_fastqs(study, output_dir, remove_index_file=False):
+def fetch_fastqs(study, output_dir, remove_index_file=False, overwrite=False):
     """Helper method to consolidate calls to other methods for processing fastqs
 
     This method is potentially convoluted to try to handle the fact that runs
@@ -267,23 +273,33 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
         except KeyError:
             logger.warning("No run_prefix in metadata for: " + index)
         if len(run_prefix) > 0:
-            logger.info("Unpacking: " + str(row["fastq_ftp"]))
-            ebi_dict = unpack_fastq_ftp(
-                str(row["fastq_ftp"]), str(row["fastq_md5"])
-            )
+            if "local_fastq_fp" in row:
+                logger.info(
+                    "Using local filepaths and checksums."
+                    + " Pass overwrite=True to force retrieval from ftp"
+                )
+                fp_string = str(row["local_fastq_fp"])
+                md5_string = str(row["local_fastq_fp"])
+            else:
+                fp_string = str(row["fastq_ftp"])
+                md5_string = str(row["fastq_md5"])
+
+            logger.info("Unpacking: " + fp_string)
+            ebi_dict = unpack_fastq_ftp(fp_string, md5_string)
             if len(ebi_dict) == 0:
                 logger.warning(
                     "No fastq files to download found for\n" + run_prefix
                 )
             else:
                 layout = row["library_layout"]
-                row["qebil_raw_reads"] = fetch_fastq_files(
+                fetch_result = fetch_fastq_files(
                     run_prefix,
                     ebi_dict,
                     output_dir,
                     layout,
                     remove_index_file,
                 )
+                row["qebil_raw_reads"] = fetch_result[0]
                 if row["qebil_raw_reads"] == "error":
                     logger.warning("Issue retrieving files for " + run_prefix)
                 else:
@@ -294,6 +310,38 @@ def fetch_fastqs(study, output_dir, remove_index_file=False):
                         + str(row["qebil_raw_reads"])
                         + " reads."
                     )
+
+                    corrected_fq_dict = fetch_result[1]
+                    if len(corrected_fq_dict) < len(ebi_dict):
+                        logger.warning(
+                            "Number of read files changed, updating metadata."
+                        )
+                        fp_list = []
+                        md5_list = []
+                        for read in corrected_fq_dict.keys():
+                            read_num = read[-1]
+                            if read_num == "1":
+                                fp_list = (
+                                    corrected_fq_dict[read]["fp"] + fp_list
+                                )
+                                md5_list = (
+                                    corrected_fq_dict[read]["md5"] + md5_list
+                                )
+                            elif read_num == "2":
+                                fp_list += corrected_fq_dict[read]["fp"]
+                                md5_list += corrected_fq_dict[read]["md5"]
+                            else:
+                                logger.error(
+                                    "Should not be here."
+                                    + " corrected_fq_dict is diff and >=3."
+                                )
+
+                        row["local_fastq_fp"] = ";".join(fp_list)
+                        row["local_fastq_md5"] = ";".join(md5_list)
+                    else:
+                        row["local_fastq_fp"] = row["fastq_ftp"]
+                        row["local_fastq_md5"] = row["fastq_md5"]
+
                     # adding loop to try to resolve ambiguous hits
                     # could be improved, but first stab at it
                     strategy = row["library_strategy"]
@@ -364,7 +412,7 @@ def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
     local = False
     if not overwrite:
         if path.isfile(filepath):
-            checksum = compare_checksum(filepath, remote_checksum)
+            checksum = get_checksum(filepath, remote_checksum)
             if checksum:
                 local = True
                 logger.info(
@@ -389,7 +437,7 @@ def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
         # add catch in case there is an issue with the connection
         try:
             urlretrieve("ftp://" + ftp_path, filepath)
-            checksum = compare_checksum(filepath, remote_checksum)
+            checksum = get_checksum(filepath, remote_checksum)
             return checksum
         except urllib.error.URLError:  # RequestException:
             logger.warning(
