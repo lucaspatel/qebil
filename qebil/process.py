@@ -104,79 +104,45 @@ def deplete_on_the_fly(
             mb_reads = "not determined"
 
         prep_file_type = md.at[index, "qebil_prep_file"].split("_")[1]
-        ebi_dict = unpack_fastq_ftp(
-            md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
+        ebi_dict, error = unpack_fastq_ftp(
+            md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"], md.at[index, "fastq_bytes"], layout
         )
-
-        if not raw_reads.isnumeric():
-            # this value should only be set if downloaded
-            md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
-                run_prefix, ebi_dict, output_dir, layout, remove_index
-            )
-            raw_reads = md.at[index, "qebil_raw_reads"]
-            logger.info("raw reads after download:" + str(raw_reads))
-            # need to update metadata to not lose progress
-            study.metadata = md
-            write_metadata_files(
-                {study.proj_id: study},
-                output_dir,
-                prefix,
-                prep_max=max_prep,
-            )
-        if not filtered_reads.isnumeric() and raw_reads.isnumeric():
-            # this value should only be set if filtered
-            md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
-                run_prefix, raw_reads, model, output_dir, cpus, keep_files
-            )
-            filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
-            if filtered_reads.isnumeric():
-                md.at[index, "qebil_frac_reads_passing_filter"] = int(
-                    filtered_reads
-                ) / int(raw_reads)
-                logger.info(
-                    "frac surviving filter: "
-                    + str(md.at[index, "qebil_frac_reads_passing_filter"])
-                )
-            # need to update metadata to not lose progress
-            study.metadata = md
-            write_metadata_files(
-                {study.proj_id: study},
-                output_dir,
-                prefix,
-                prep_max=max_prep,
-                fastq_prefix=".fastp",
-            )
-
-        # check to make sure the data can be host_depleted
-        if prep_file_type not in ["Metagenomic", "Metatranscriptomic"]:
+        if error != '':
             logger.warning(
-                "Skipping host depletion for "
-                + run_prefix
-                + " library_strategy: "
-                + prep_file_type
-                + " invalid for host depletion."
+                "Issue retrieving file(s) for "
+               + run_prefix
+               + ": "
+               + error
             )
         else:
-            # this value should only be set if host filtering finished
-            if not mb_reads.isnumeric() and filtered_reads.isnumeric():
-                md.at[index, "qebil_non_host_reads"] = run_host_depletion(
-                    run_prefix,
-                    filtered_reads,
+            if not raw_reads.isnumeric():
+                # this value should only be set if downloaded
+                raw_reads, local_read_dict, notes = fetch_fastq_files(
+                    run_prefix, ebi_dict, output_dir
+                )
+                md.at[index, "qebil_raw_reads"] = raw_reads
+                logger.info("raw reads after download:" + str(raw_reads))
+                # need to update metadata to not lose progress
+                study.metadata = md
+                write_metadata_files(
+                    {study.proj_id: study},
                     output_dir,
-                    cpus,
-                    keep_files,  # note need to see how this behaves
+                    prefix,
+                    prep_max=max_prep,
                 )
-                filtered_reads = str(
-                    md.at[index, "qebil_quality_filtered_reads"]
+            if not filtered_reads.isnumeric() and raw_reads.isnumeric():
+                # this value should only be set if filtered
+                md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
+                    run_prefix, raw_reads, model, output_dir, cpus, keep_files
                 )
-                mb_reads = str(md.at[index, "qebil_non_host_reads"])
-                if mb_reads.isnumeric():
-                    md.at[index, "qebil_frac_non_host_reads"] = int(
-                        mb_reads
-                    ) / int(filtered_reads)
+                filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
+                if filtered_reads.isnumeric():
+                    md.at[index, "qebil_frac_reads_passing_filter"] = int(
+                        filtered_reads
+                    ) / int(raw_reads)
                     logger.info(
-                        "frac mbDNA: "
-                        + str(md.at[index, "qebil_frac_non_host_reads"])
+                        "frac surviving filter: "
+                        + str(md.at[index, "qebil_frac_reads_passing_filter"])
                     )
                 # need to update metadata to not lose progress
                 study.metadata = md
@@ -185,8 +151,49 @@ def deplete_on_the_fly(
                     output_dir,
                     prefix,
                     prep_max=max_prep,
-                    fastq_prefix=".filtered",
+                    fastq_prefix=".fastp",
                 )
+
+            # check to make sure the data can be host_depleted
+            if prep_file_type not in ["Metagenomic", "Metatranscriptomic"]:
+                logger.warning(
+                    "Skipping host depletion for "
+                    + run_prefix
+                    + " library_strategy: "
+                    + prep_file_type
+                    + " invalid for host depletion."
+                )
+            else:
+                # this value should only be set if host filtering finished
+                if not mb_reads.isnumeric() and filtered_reads.isnumeric():
+                    md.at[index, "qebil_non_host_reads"] = run_host_depletion(
+                        run_prefix,
+                        filtered_reads,
+                        output_dir,
+                        cpus,
+                        keep_files,  # note need to see how this behaves
+                    )
+                    filtered_reads = str(
+                        md.at[index, "qebil_quality_filtered_reads"]
+                    )
+                    mb_reads = str(md.at[index, "qebil_non_host_reads"])
+                    if mb_reads.isnumeric():
+                        md.at[index, "qebil_frac_non_host_reads"] = int(
+                            mb_reads
+                        ) / int(filtered_reads)
+                        logger.info(
+                            "frac mbDNA: "
+                            + str(md.at[index, "qebil_frac_non_host_reads"])
+                        )
+                    # need to update metadata to not lose progress
+                    study.metadata = md
+                    write_metadata_files(
+                        {study.proj_id: study},
+                        output_dir,
+                        prefix,
+                        prep_max=max_prep,
+                        fastq_prefix=".filtered",
+                    )
 
     return study
 

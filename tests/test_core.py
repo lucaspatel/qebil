@@ -113,7 +113,8 @@ class StudyTest(unittest.TestCase):
         )
         test_df["sample_name"] = test_df["sample_accession"]
         test_df = test_df.set_index("sample_name")
-        # print(valid_study.metadata.columns)
+        print(valid_study.metadata.columns)
+        print(test_df.columns)
         assert_frame_equal(
             valid_study.metadata.sort_index(axis=1),
             test_df.sort_index(axis=1),

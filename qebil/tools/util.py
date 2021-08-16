@@ -373,7 +373,7 @@ def scrape_seq_method(study_text):
     return found_methods
 
 
-def unpack_fastq_ftp(fastq_ftp, fastq_md5, sep=";"):
+def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
     """Unpacks the ftp and md5 field from EBI metadata
 
     Takes paired set of ebi-format fastq_ftp and fastq_md5
@@ -386,6 +386,11 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, sep=";"):
         string of semicolon separated ftp filepaths
     fastq_md5: string
         string of semicolon separated md5 checksums
+    fastq_bytes: string
+        string of semicolon separated file sizes
+    layout: int
+        number of string expected
+
 
     Returns
     ----------
@@ -393,26 +398,47 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, sep=";"):
         dict of paired ftp filepaths and md5 checksums
     """
     remote_dict = {}
+    error_msg = ""
     ftp_list = fastq_ftp.split(sep)
-    logger.info(ftp_list)
     md5_list = fastq_md5.split(sep)
+    bytes_list = [int(b) for b in fastq_bytes.split(sep)]
 
     if len(ftp_list) == 0:
         error_msg = (
             "No ftp files present. Check study details"
             + " as access may be restricted"
         )
-        logger.warning(error_msg)
+    elif len(ftp_list) > 3:
+        error_msg = "More than 3 read files in ftp, skipping"
+    elif len(ftp_list) > layout:
+        error_msg = "More read files than expected in ftp."
+        min_bytes = min(bytes_list)
+        read_counter = 0
+        read_num = 1
+        while read_counter < len(ftp_list):
+            read_dict = {}
+            read_dict["ftp"] = ftp_list[read_counter]
+            read_dict["md5"] = md5_list[read_counter]
+            read_dict["bytes"] = bytes_list[read_counter]
+            read_counter += 1
+            if read_dict["bytes"] == min_bytes:
+                remote_dict["read_0"] = read_dict
+            else:
+                remote_dict["read_" + str(read_num)] = read_dict
+                read_num += 1
+    elif len(ftp_list) < layout:
+        error_msg = "Fewer read files than expected in ftp."
     else:
         read_counter = 0
         while read_counter < len(ftp_list):
             read_dict = {}
             read_dict["ftp"] = ftp_list[read_counter]
             read_dict["md5"] = md5_list[read_counter]
+            read_dict["bytes"] = bytes_list[read_counter]
             read_counter += 1
             remote_dict["read_" + str(read_counter)] = read_dict
 
-    return remote_dict
+    return remote_dict, error_msg
 
 
 def remove_index_read_file(fastq_dict, layout):
@@ -464,7 +490,17 @@ def remove_index_read_file(fastq_dict, layout):
         index_file = ""
         read_length_dict = {}
         for f in fastq_dict.keys():
-            read_length_dict[f] = get_read_length(fastq_dict[f]["fp"])
+            print(f)
+            read_length = get_read_length(fastq_dict[f]["fp"])
+            if read_length.isnumeric():
+                read_length_dict[f] = int(read_length)
+            else:
+                logger.warning(
+                    "Read length for "
+                    + fastq_dict[f]["fp"]
+                    + " is non-numeric. Setting to 0."
+                )
+                read_length_dict[f] = 0
 
         read_lengths = [int(r) for r in list(read_length_dict.values())]
 
@@ -479,7 +515,16 @@ def remove_index_read_file(fastq_dict, layout):
 
             for f in fastq_dict.keys():
                 print(f)
-                read_count_dict[f] = get_read_count(fastq_dict[f]["fp"])
+                read_count = get_read_count(fastq_dict[f]["fp"])
+                if read_count.isnumeric():
+                    read_count_dict[f] = int(read_count)
+                else:
+                    logger.warning(
+                        "Read count for "
+                        + fastq_dict[f]["fp"]
+                        + " is non-numeric. Setting to 0."
+                    )
+                    read_count_dict[f] = 0
 
             read_counts = [int(r) for r in list(read_count_dict.values())]
 
@@ -515,13 +560,15 @@ def remove_index_read_file(fastq_dict, layout):
                     # move read3 to the now removed read2 filepath
                     move(fastq_dict["read3"]["fp"], fastq_dict["read2"]["fp"])
                     # update read2's md to that of the former read3
-                    new_fastq_dict["read2"]["md5"] = fastq_dict["read3"]["md5"]
+                    new_fastq_dict["read2"]["md5"] = fastq_dict["read3"][
+                        "md5"
+                    ]
                     # remove read3 from the dict
                     del new_fastq_dict["read3"]
             elif "read3" in fastq_dict.keys():
                 # if read2 is removed and there were only two, no action needed
                 # otherwise move read3 to read 2
-                move(fastq_dict["read3"], fastq_dict["read2"])
+                move(fastq_dict["read3"]["fp"], fastq_dict["read2"]["fp"])
                 # update read2's md to that of the former read3
                 new_fastq_dict["read2"]["md5"] = fastq_dict["read3"]["md5"]
                 # remove read3 from the dict

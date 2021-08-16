@@ -6,7 +6,11 @@ from qebil.log import setup_log
 from qebil.tools.metadata import load_metadata
 from qebil.normalize import qiimp_parser, apply_validation, normalize_lat_lon
 
-from qebil.commands import _OUTPUT_OPTIONS, _METADATA_OPTIONS
+from qebil.commands import (
+    _OUTPUT_OPTIONS,
+    _METADATA_OPTIONS,
+    _AUGMENT_OPTIONS,
+)
 
 this_dir, this_filename = path.split(__file__)
 yaml_dir = path.join(this_dir, "..", "support_files", "validators")
@@ -110,7 +114,10 @@ def normalize_metadata(
             output_df = normalize_lat_lon(output_df)
 
         output_df.to_csv(
-            output_dir + file_name + suffix, sep="\t", index=False
+            output_dir + file_name + suffix,
+            sep="\t",
+            index=True,
+            index_label="sample_name",
         )
 
         if len(msg) > 0:
@@ -126,3 +133,94 @@ def normalize_metadata(
                 logger.warning(
                     "Validation errors written to " + valid_log_filename
                 )
+
+
+@metadata.command(name="augment")
+@add_options(_METADATA_OPTIONS)
+@add_options(_AUGMENT_OPTIONS)
+@add_options(_OUTPUT_OPTIONS)
+def augment_metadata(
+    output_dir,
+    prefix,
+    metadata_file,
+    add_metadata_file,
+    merge_column,
+    emp_protocol,
+    prep_max,
+    quiet,
+):
+    """Applies the specified Qiimp-formatted .xlsx or .yml file
+    to the provided metadata file(s) to normalize before uploading
+    to Qiita
+
+    Parameters
+    ----------
+    output_dir: string
+        directory for writing out search results and logs
+    prefix: string
+        string to prepend to results and logs
+    metadata-file: string
+        tsv or csv file containing the samples that should
+        be retrieved
+    validator: string
+        QIIMP-formatted .yml or .xlsx file to use for normalizing
+        and validating the metadata
+     prep_max: int
+        the maximum number of files to add to any given prep
+        info file
+    quiet: bool
+        whether to write out log messages to a file
+    qiita_standard: bool
+        whether to apply the Qiita-standard normalization for
+        terms using default_mappings.yml
+
+    \b
+    Returns
+    ----------
+    None
+
+    """
+    # output_dir directory
+    if output_dir[-1] != "/":
+        output_dir += "/"
+
+    if not path.exists(output_dir):
+        makedirs(output_dir)
+
+    suffix = "augmented.tsv"
+    setup_log(output_dir, prefix, suffix, quiet)
+    from qebil.log import logger
+
+    # configure prefix
+    if prefix != "" and prefix[-1] != "_":
+        prefix += "_"
+
+    supp_md_list = list(add_metadata_file)
+
+    if len(supp_md_list) == 0:
+        logger.warning(
+            "No supplmental metadata files supplied."
+            + " Please pass using --add-metadata flag."
+        )
+    else:
+        # import metadata files if present for augmentation
+        for f in metadata_file:
+            tmp_md = load_metadata(f)
+            # set file name
+            ext = f.split(".")[-1]
+            source_dir = "/".join(f.split("/")[:-1])
+            file_name = prefix + f.replace(source_dir, "").replace(ext, "")
+
+            output_df = augment_metadata(
+                tmp_md,
+                supp_md_list,
+                merge_column,
+                emp_protocol,
+            )
+
+            output_df.to_csv(
+                output_dir + file_name + suffix,
+                sep="\t",
+                index=True,
+                index_label="sample_name",
+            )

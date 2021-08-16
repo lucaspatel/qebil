@@ -1,6 +1,7 @@
 from os import path, remove
 from subprocess import Popen, PIPE
 import pandas as pd
+from pandas.errors import EmptyDataError
 import numpy as np
 
 from qebil.log import logger
@@ -176,13 +177,29 @@ def blast_for_type(fastq_file, db_dict={}):
         blastn_ps.wait()
 
         if blastn_ps.returncode == 0:
-            mean_eval = np.mean(
-                list(pd.read_csv(tmp_res, sep="\t", header=None)[10])
-            )
-            logger.info(db_type + " " + str(mean_eval))
-            if mean_eval < min_eval:
-                match = db_type[:3]
-                min_eval = mean_eval
+            if path.isfile(tmp_res):
+                try:
+                    res_df = pd.read_csv(tmp_res, sep="\t", header=None)
+                except EmptyDataError:
+                    logger.warning(
+                        "Error running blastn with parameters: "
+                        + blastn_string
+                        + "\n No results in file for "
+                        + str(db_type)
+                    )
+            if len(res_df) > 0:
+                mean_eval = np.mean(list(res_df[10]))
+                logger.info(db_type + " " + str(mean_eval))
+                if mean_eval < min_eval:
+                    match = db_type[:3]
+                    min_eval = mean_eval
+            else:
+                logger.warning(
+                    "Error running blastn with parameters: "
+                    + blastn_string
+                    + "\n No results in file for "
+                    + str(db_type)
+                )
         else:
             logger.warning(
                 "Error running blastn with parameters: " + blastn_string

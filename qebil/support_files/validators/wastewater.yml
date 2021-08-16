@@ -223,13 +223,6 @@ physical_specimen_remaining:
   field_desc: Whether there is any raw specimen left to sample.
   is_phi: false
   required: true
-sample_name:
-  empty: false
-  is_phi: false
-  regex: ^[a-zA-Z0-9\.]+$
-  required: true
-  type: string
-  unique: true
 sample_type:
   allowed:
   - wastewater

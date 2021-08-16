@@ -13,8 +13,6 @@ from qebil.tools.util import get_ebi_ids, parse_details
 
 _QEBIL_PREP_INFO_COLUMNS = [
     "run_prefix",
-    "fastq_ftp",
-    "fastq_md5",
     "study_accession",
     "experiment_accession",
     "platform",
@@ -36,11 +34,11 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "primer",
     "run_accession",
     "qebil_ebi_import",
-    "qebil_prep_file",
     "experiment_alias",
     "experiment_title",
     "experiment_title_specific",
     "library_name",
+    "qebil_prep_file",
 ]
 
 
@@ -50,6 +48,14 @@ _READ_COLUMNS = [
     "qebil_non_host_reads",
     "qebil_frac_reads_passing_filter",
     "qebil_frac_non_host_reads",
+]
+
+_QEBIL_COLUMNS = [
+    "local_fastq_fp",
+    "local_fastq_md5",
+    "fastq_ftp",
+    "fastq_md5",
+    "qebil_notes",
 ]
 
 
@@ -163,6 +169,19 @@ class Study:
             raise ValueError("Did not receive list, instead: " + value)
         else:
             self._prep_columns = value
+
+    @property
+    def qebil_columns(self):
+        """Gets the columns to be excluded from Qiita information files"""
+        return self._qebil_columns
+
+    @qebil_columns.setter
+    def qebil_columns(self, value):
+        """Gets the columns to be excluded from Qiita information files"""
+        if not isinstance(value, list):
+            raise ValueError("Did not receive list, instead: " + value)
+        else:
+            self._qebil_columns = value
 
     @classmethod
     def from_remote(
@@ -404,6 +423,9 @@ class Study:
                 self.metadata.at[
                     index, "experiment_title_specific"
                 ] = expt_xml_dict["TITLE"]
+                self.metadata.at[
+                    index, "experiment_design_description"
+                ] = expt_xml_dict["DESIGN"]["DESIGN_DESCRIPTION"]
 
                 try:
                     ea = expt_xml_dict["EXPERIMENT_ATTRIBUTES"][
@@ -707,3 +729,4 @@ class Study:
         self.prep_columns = (
             self.prep_columns + _QEBIL_PREP_INFO_COLUMNS + _READ_COLUMNS
         )
+        self.qebil_columns = _QEBIL_COLUMNS

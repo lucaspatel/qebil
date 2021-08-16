@@ -1,4 +1,4 @@
-qiita_empo_1: 
+qebil_empo_1:
     sources:
         empo_1:
         simple_sample_type: 
@@ -469,7 +469,7 @@ qiita_empo_1:
                 'Xestospongia muta' : 'Host-associated'
                 'Xestospongia sp.' : 'Host-associated'
                 'Xestospongia testudinaria' : 'Host-associated'
-qiita_empo_2:
+qebil_empo_2:
     sources:
         empo_2:
         sample_type:
@@ -940,7 +940,7 @@ qiita_empo_2:
                 'Xestospongia muta' : 'Animal'
                 'Xestospongia sp.' : 'Animal'
                 'Xestospongia testudinaria' : 'Animal'
-qiita_empo_3:
+qebil_empo_3:
   sources:
       empo_3:
       sample_type:
@@ -1411,7 +1411,7 @@ qiita_empo_3:
             'Xestospongia muta' : 'Animal corpus'
             'Xestospongia sp.' : 'Animal corpus'
             'Xestospongia testudinaria' : 'Animal corpus'
-qiita_simple_sample_type:
+qebil_simple_sample_type:
     sources:
         simple_sample_type:
         sample_type: 
@@ -1882,7 +1882,7 @@ qiita_simple_sample_type:
                 'Xestospongia muta' : 'sponge'
                 'Xestospongia sp.' : 'sponge'
                 'Xestospongia testudinaria' : 'sponge'
-qiita_sex:
+qebil_sex:
     sources:
         sex:
             mapping:
@@ -1933,18 +1933,18 @@ qiita_sex:
                 'male' : 'male'
                 'female' : 'female'
                 'asexual': 'neuter'
-qiita_host_age:
+qebil_host_age:
     sources:
         host_age:
         age_years:
         age_in_years:
-qiita_host_life_stage:
+qebil_host_life_stage:
     sources:
         host_life_stage:
         life_stage:
         qiita_age:
         age_years:
-qiita_taxon_id:
+qebil_taxon_id:
     sources:
         taxon_id:
         tax_id:

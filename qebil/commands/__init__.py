@@ -89,6 +89,7 @@ _SUBSET_OPTIONS = [
                 "ChIA-PET",
                 "RAD-Seq",
                 "Other",
+                "Targeted-Capture",
             ],
             case_sensitive=False,
         ),

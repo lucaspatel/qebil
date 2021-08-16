@@ -207,6 +207,9 @@ def write_metadata_files(
 
         # check that the metadata has at least one sample
         if len(md) > 0:
+            # drop any empty columns since they're not helpful
+            md = md.dropna(axis=1, how="all")
+
             if output_qiita:
                 # use helper to split into info files
                 write_qebil_info_files(
@@ -294,6 +297,14 @@ def write_qebil_info_files(
     analytical_notes = ""
 
     final_df = study.metadata
+
+    # drop QEBIL-only columns
+    qebil_columns = study.qebil_columns
+    for q in qebil_columns:
+        if q in final_df.columns:
+            final_df = final_df.drop([q], axis=1)
+
+    # get prep columns to separate
     prep_info_columns = study.prep_columns
 
     if max_prep > len(final_df):
