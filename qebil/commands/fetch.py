@@ -585,6 +585,7 @@ def fetch_project(
                         max_prep=prep_max,
                         update_status=False,  # suppress here, update below
                         fastq_prefix=fastq_prefix,
+                        write_preps=False
                     )
 
                     supp_md_list = list(add_metadata_file)

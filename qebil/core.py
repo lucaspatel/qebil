@@ -39,6 +39,7 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "experiment_title_specific",
     "library_name",
     "qebil_prep_file",
+    'experiment_design_description',
 ]
 
 
@@ -55,6 +56,7 @@ _QEBIL_COLUMNS = [
     "local_fastq_md5",
     "fastq_ftp",
     "fastq_md5",
+    'fastq_bytes',
     "qebil_notes",
 ]
 
@@ -182,6 +184,32 @@ class Study:
             raise ValueError("Did not receive list, instead: " + value)
         else:
             self._qebil_columns = value
+
+    @property
+    def cpus(self):
+        """Gets the number of cpus available"""
+        return self._cpus
+
+    @cpus.setter
+    def cpus(self, value):
+        """Sets the number of cpus available if int, rejects if other type"""
+        if isinstance(value, int):
+            self._cpus = value
+        else:
+            raise ValueError("Expected int, received " + str(type(value)))
+
+    @property
+    def out_dir(self):
+        """Gets the output directory"""
+        return str(self._out_dir)
+
+    @out_dir.setter
+    def out_dir(self, value):
+        """Sets the output directory if a string"""
+        if not isinstance(value, str):
+            raise ValueError("Did not receive string, instead: " + str(value))
+        else:
+            self._out_dir = value
 
     @classmethod
     def from_remote(

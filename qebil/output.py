@@ -245,6 +245,7 @@ def write_qebil_info_files(
     max_prep=250,
     update_status=True,
     fastq_prefix=".ebi",
+    write_preps=True,
 ):
     """Writes out the prep and sample information files
 
@@ -283,6 +284,8 @@ def write_qebil_info_files(
         max number of samples to write into any prep info file
     fastq_prefix: string
         the prefix before the .fastq.gz extension to use for checking files
+    write_preps: bool
+        whether or not to write the prep info file(s)
 
     Returns
     -------
@@ -291,10 +294,6 @@ def write_qebil_info_files(
     """
     prefix = output_dir + "/" + file_prefix
     sample_info_filename = prefix + "_sample_info" + file_suffix + ".tsv"
-    prep_file_suffix = file_suffix + ".tsv"
-    valid_prep = False  # flag to enable writing of .qebil_status file
-    blasted_samples = []
-    analytical_notes = ""
 
     final_df = study.metadata
 
@@ -325,6 +324,51 @@ def write_qebil_info_files(
     )
 
     # now handle preps
+    if write_preps:
+        # TODO: refactor this as this is a bad way to achieve this result
+        # need to update other cals to separate concepts of writing sample info
+        # and prep info
+        analytical_notes = write_prep_files(
+            final_df,
+            prep_info_columns,
+            output_dir,
+            file_prefix,
+            prefix,
+            file_suffix,
+            fastq_prefix,
+            max_prep,
+            update_status,
+        )
+
+        # if there are analytical notes write them
+        if len(analytical_notes) > 0:
+            write_file(
+                output_dir + file_prefix + "_analytical_notes.txt",
+                analytical_notes,
+                "a",
+            )
+
+
+def write_prep_files(
+    final_df,
+    prep_info_columns,
+    output_dir,
+    file_prefix,
+    prefix,
+    file_suffix,
+    fastq_prefix=".ebi",
+    max_prep=250,
+    update_status=True,
+    check_files=True,
+    separate_too_many=False,
+):
+    # TODO: add documentation
+    # TODO: refactor to streamline
+    prep_file_suffix = file_suffix + ".tsv"
+    valid_prep = False  # flag to enable writing of .qebil_status file
+    blasted_samples = []
+    analytical_notes = ""
+
     prep_info_columns = [
         "sample_name"
     ] + prep_info_columns  # add to list for writing out prep files
@@ -367,7 +411,17 @@ def write_qebil_info_files(
                             # in the future
                             blasted_samples += list(prep_df["run_prefix"])
 
-            # now write out the prep info files
+            # add analytic notes if needed
+            if len(blasted_samples) > 0:
+                analytical_notes += (
+                    "The files with the following "
+                    + " run_prefix were blasted to determine type"
+                    + " due to missing target_gene information:"
+                    + str(blasted_samples)
+                    + "\n"
+                )
+
+            # now prepare the df to write out
             prep_df = prep_df[
                 prep_df.columns[prep_df.columns.isin(prep_info_columns)]
             ]
@@ -411,6 +465,10 @@ def write_qebil_info_files(
                     "MISSING": {"fp": missing_fp, "files": []},
                     "TOOMANYREADS": {"fp": toomany_fp, "files": []},
                 }
+
+                # set string to collect analytical notes
+                analytical_notes = ""
+
                 for f in prep["run_prefix"]:
                     f_list = glob.glob(
                         output_dir + str(f) + "*" + fastq_prefix + ".fastq.gz"
@@ -436,34 +494,53 @@ def write_qebil_info_files(
                         else:
                             logger.error("Layout is unexpected: " + layout)
                     elif len(f_list) == 2:
-                        if layout == "SINGLE":
-                            file_status_dict["TOOMANYREADS"]["files"].append(
-                                str(f)
-                            )
-                            logger.warning(
-                                "Too many reads("
-                                + len(f_list)
-                                + ") for "
-                                + str(f)
-                            )
-                            # for f in f_list:
-                            # remove(f)
-                        elif layout == "PAIRED":
+                        if layout == "PAIRED":
                             file_status_dict["VALID"]["files"].append(str(f))
+                        elif layout == "SINGLE":
+                            if separate_too_many:
+                                file_status_dict["TOOMANYREADS"][
+                                    "files"
+                                ].append(str(f))
+                                logger.warning(
+                                    "Too many reads files("
+                                    + str(len(f_list))
+                                    + ") for "
+                                    + str(f)
+                                )
+                            else:
+                                logger.warning(
+                                    "Too many reads files("
+                                    + str(len(f_list))
+                                    + ") for "
+                                    + str(f)
+                                    + "but enough to be valid"
+                                )
+                                file_status_dict["VALID"]["files"].append(
+                                    str(f)
+                                )
                         else:
                             logger.error("Layout is unexpected: " + layout)
-                    else:
+                    elif separate_too_many:
                         file_status_dict["TOOMANYREADS"]["files"].append(
                             str(f)
                         )
                         logger.warning(
-                            "Too many reads("
+                            "Too many reads files("
                             + str(len(f_list))
                             + ") for "
                             + str(f)
                             + "with layout "
                             + layout
                         )
+                    else:
+                        logger.warning(
+                            "Too many reads files("
+                            + str(len(f_list))
+                            + ") for "
+                            + str(f)
+                            + "but enough to be valid"
+                        )
+                        file_status_dict["VALID"]["files"].append(str(f))
 
                 # see if there are valid files first
                 valid_fp = file_status_dict["VALID"]["fp"]
@@ -522,24 +599,10 @@ def write_qebil_info_files(
                                 index=True,
                                 index_label="sample_name",
                             )
+
                 prep_count += 1
 
-                # add analytic notes if needed
-                if len(blasted_samples) > 0:
-                    analytical_notes += (
-                        "The files with the following "
-                        + " run_prefix were blasted to determine type"
-                        + " due to missing target_gene information:"
-                        + str(blasted_samples)
-                    )
-
-                # if there are analytical notes write them
-                if len(analytical_notes) > 0:
-                    write_file(
-                        output_dir + file_prefix + "_analytical_notes.txt",
-                        analytical_notes,
-                        "a",
-                    )
+    return analytical_notes
 
 
 def write_file(filename, contents, mode="w"):

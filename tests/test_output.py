@@ -60,7 +60,7 @@ class OutputTest(unittest.TestCase):
             + "principal_investigator = Qiita-EBI Import, "
             + "qiita.help@gmail.com, See study details\n"
             + "reprocess = False\n"
-            + "study_alias = PRJNA660883; \n"
+            + "study_alias = PRJNA660883\n"
             + "study_description = SRP283872; PRJNA660883\n"
             + "study_abstract = 16S and metagenomic "
             + "sequences from individuals with acute "
@@ -443,7 +443,7 @@ class OutputTest(unittest.TestCase):
             _TEST_OUTPUT_DIR + "/test_raw_SRP283872.EBI_metadata.tsv",
             sep="\t",
             header=0,
-        )
+        )        
         created_sample_df = pd.read_csv(
             _TEST_OUTPUT_DIR + "/test_qiita_SRP283872_sample_info.tsv",
             sep="\t",
@@ -492,12 +492,12 @@ class OutputTest(unittest.TestCase):
             + "/test_qiita2_prep_info_PAIRED_Metagenomic_0_part0.MISSING.tsv",
             sep="\t",
             header=0,
-        )
-        print("test_sample_df columns:" + str(sorted(test_sample_df.columns)))
-        print(
-            "created_sample_df columns:"
-            + str(sorted(created_sample_df.columns))
-        )
+        )       
+        # print("test_sample_df columns:" + str(sorted(test_sample_df.columns)))
+        # print(
+        #    "created_sample_df columns:"
+        #    + str(sorted(created_sample_df.columns))
+        # )
         assert_frame_equal(
             test_sample_df.sort_index(axis=1),
             created_sample_df.sort_index(axis=1),

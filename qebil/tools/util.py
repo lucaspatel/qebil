@@ -406,7 +406,7 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
     if len(ftp_list) == 0:
         error_msg = (
             "No ftp files present. Check study details"
-            + " as access may be restricted"
+            + " as access may be restricted; skipping"
         )
     elif len(ftp_list) > 3:
         error_msg = "More than 3 read files in ftp, skipping"

@@ -57,11 +57,15 @@ def deplete_on_the_fly(
         study.populate_preps()
 
     md = study.metadata
+    layout_dict = {"single": 1, "paired": 2}
 
     for index in md.index:
         run_prefix = md.at[index, "run_prefix"]
         model = md.at[index, "instrument_model"]
-        layout = md.at[index, "library_layout"]
+        layout = str(md.at[index, "library_layout"]).lower()
+
+        if layout in layout_dict.keys():
+            expected_num_read_files = layout_dict[layout]
         try:
             raw_reads = str(md.at[index, "qebil_raw_reads"])
             logger.info(
@@ -105,14 +109,14 @@ def deplete_on_the_fly(
 
         prep_file_type = md.at[index, "qebil_prep_file"].split("_")[1]
         ebi_dict, error = unpack_fastq_ftp(
-            md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"], md.at[index, "fastq_bytes"], layout
+            md.at[index, "fastq_ftp"],
+            md.at[index, "fastq_md5"],
+            md.at[index, "fastq_bytes"],
+            expected_num_read_files,
         )
-        if error != '':
+        if "skipping" in error:
             logger.warning(
-                "Issue retrieving file(s) for "
-               + run_prefix
-               + ": "
-               + error
+                "Issue retrieving file(s) for " + run_prefix + ": " + error
             )
         else:
             if not raw_reads.isnumeric():
@@ -129,14 +133,22 @@ def deplete_on_the_fly(
                     output_dir,
                     prefix,
                     prep_max=max_prep,
+                    fastq_prefix=".ebi",
+                    write_preps=False,
                 )
             if not filtered_reads.isnumeric() and raw_reads.isnumeric():
                 # this value should only be set if filtered
-                md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
+                filtered_reads = run_fastp(
                     run_prefix, raw_reads, model, output_dir, cpus, keep_files
                 )
-                filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
+
                 if filtered_reads.isnumeric():
+                    # need to correct number based on layout since
+                    # fastp provides R1+R2 reads as total reads
+                    filtered_reads = (
+                        int(filtered_reads) / expected_num_read_files
+                    )
+
                     md.at[index, "qebil_frac_reads_passing_filter"] = int(
                         filtered_reads
                     ) / int(raw_reads)
@@ -144,6 +156,12 @@ def deplete_on_the_fly(
                         "frac surviving filter: "
                         + str(md.at[index, "qebil_frac_reads_passing_filter"])
                     )
+
+                # update metadata regardless of success or failure
+                md.at[index, "qebil_quality_filtered_reads"] = str(
+                    filtered_reads
+                )
+
                 # need to update metadata to not lose progress
                 study.metadata = md
                 write_metadata_files(
@@ -152,6 +170,7 @@ def deplete_on_the_fly(
                     prefix,
                     prep_max=max_prep,
                     fastq_prefix=".fastp",
+                    write_preps=False,
                 )
 
             # check to make sure the data can be host_depleted
@@ -372,7 +391,7 @@ def run_fastp(
                         if path.isfile(f):
                             remove(f)
 
-                return filtered_reads
+                return str(filtered_reads)
 
 
 def run_host_depletion(
@@ -543,4 +562,4 @@ def run_host_depletion(
                     remove(c)
             mb_reads = "minimap2 error"
 
-    return mb_reads
+    return str(mb_reads)

@@ -34,7 +34,7 @@ def fetch_ebi_info(accession):
     xml_dict = {}
     # could use this list valid_stems=["PRJEB", "PRJNA", "ERP",
     # "SRP", "SRR", "SRS"] to check format before requesting url
-    url = "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=" + str(accession)
+    url = "https://www.ebi.ac.uk/ena/browser/api/xml/" + str(accession)
     logger.info(url)
     try:
         response = requests.get(url)
@@ -77,8 +77,10 @@ def fetch_ebi_metadata(study_accession, fields=[]):
             "secondary_sample_accession",
             "run_accession",
             "experiment_accession",
-            "fastq_bytes" "fastq_ftp",
-            "fastq_md5" "library_source",
+            "fastq_bytes",
+            "fastq_ftp",
+            "fastq_md5",
+            "library_source",
             "instrument_platform",
             "submitted_format",
             "library_strategy",
@@ -167,9 +169,7 @@ def fetch_fastq_files(run_prefix, ftp_dict, output_dir, expected_reads=""):
 
         if run_prefix in failed_list:
             logger.warning(
-                "Skipping download of "
-                + remote_fp
-                + " Paired file failed."
+                "Skipping download of " + remote_fp + " Paired file failed."
             )
             skip = True
         else:
@@ -196,9 +196,7 @@ def fetch_fastq_files(run_prefix, ftp_dict, output_dir, expected_reads=""):
                         + local_fq_path
                     )
         if not skip:
-            success = retrieve_ftp_file(
-                remote_fp, local_fq_path, remote_md5
-            )
+            success = retrieve_ftp_file(remote_fp, local_fq_path, remote_md5)
             if success:
                 local_read_dict["read" + str(read_num)]["md5"] = success
             else:
