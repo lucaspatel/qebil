@@ -162,6 +162,7 @@ def write_metadata_files(
     output_qiita=True,
     prep_max=250,
     fastq_prefix=".ebi",
+    write_preps=False
 ):
     """Helper function for writing out metadata
 
@@ -187,6 +188,8 @@ def write_metadata_files(
         max number of samples to write into any prep info file
     fastq_prefix: string
         the prefix before the .fastq.gz extension to use for checking files
+    write_preps: bool
+        whether or not to write the prep info file(s)
 
     Returns
     -------
@@ -220,6 +223,7 @@ def write_metadata_files(
                     prep_max,
                     True,
                     fastq_prefix,
+                    write_preps
                 )
                 suffix = ".QIIME_mapping_file"
 

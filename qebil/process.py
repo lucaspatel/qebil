@@ -142,11 +142,11 @@ def deplete_on_the_fly(
                     run_prefix, raw_reads, model, output_dir, cpus, keep_files
                 )
 
-                if filtered_reads.isnumeric():
+                if str(filtered_reads).isnumeric():
                     # need to correct number based on layout since
                     # fastp provides R1+R2 reads as total reads
                     filtered_reads = (
-                        int(filtered_reads) / expected_num_read_files
+                        int(int(filtered_reads) / int(expected_num_read_files))
                     )
 
                     md.at[index, "qebil_frac_reads_passing_filter"] = int(
@@ -184,7 +184,7 @@ def deplete_on_the_fly(
                 )
             else:
                 # this value should only be set if host filtering finished
-                if not mb_reads.isnumeric() and filtered_reads.isnumeric():
+                if not str(mb_reads).isnumeric() and str(filtered_reads).isnumeric():
                     md.at[index, "qebil_non_host_reads"] = run_host_depletion(
                         run_prefix,
                         filtered_reads,
@@ -391,7 +391,7 @@ def run_fastp(
                         if path.isfile(f):
                             remove(f)
 
-                return str(filtered_reads)
+                return str(int(filtered_reads))
 
 
 def run_host_depletion(
@@ -562,4 +562,4 @@ def run_host_depletion(
                     remove(c)
             mb_reads = "minimap2 error"
 
-    return str(mb_reads)
+    return str(int(mb_reads))
