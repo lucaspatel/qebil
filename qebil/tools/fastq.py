@@ -1,8 +1,8 @@
-import json
 from os import path, remove
 from subprocess import Popen, PIPE
-from shutil import move
-import gzip
+import pandas as pd
+from pandas.errors import EmptyDataError
+import numpy as np
 
 from qebil.log import logger
 
@@ -33,51 +33,6 @@ def check_valid_fastq(fastq_file, keep=True):
 
         if fqtools_ps.returncode == 0:
             valid = True
-        else:
-            if not keep:
-                logger.warning(fastq_file + " is invalid. Removing")
-                try:
-                    remove(fastq_file)
-                except FileNotFoundError:
-                    logger.warning("Failed to remove: " + fastq_file)
-            else:
-                logger.warning(
-                    fastq_file + " is invalid. Set keep = False to remove."
-                )
-    else:
-        logger.warning("Could not find fastq file: " + fastq_file)
-
-    return valid
-
-
-def check_fastq_tail(fastq_file, keep=True):
-    """Helper function to check that the end of a fastq file is valid.
-
-     Parameters
-    ----------
-    fastq_file: string
-        path to the fastq(.gz) file to check
-    keep: bool
-        whether to keep the file if it is corrupt
-
-    Returns
-    ----------
-    valid: bool
-        whether the file is valid
-
-    Note: this method is no longer used routinely, being replace
-    by get_read_count which checks validity and gets the count.
-
-    """
-    valid = False
-    if path.isfile(fastq_file):
-        with gzip.open(fastq_file, "rt") as f:
-            lines = f.readlines()[-4]
-        f.close()
-
-        if len(lines) != 0:
-            if lines[0][0] == "@" and len(lines[1]) == len(lines[3]):
-                valid = True
         else:
             if not keep:
                 logger.warning(fastq_file + " is invalid. Removing")
@@ -137,7 +92,13 @@ def get_read_count(forward_read, reverse_read=""):
             read_2_count = res
 
             if read_2_count != read_1_count:
-                return "fqtools error. R1 reads != R2 reads"
+                logger.warning(
+                    "fqtools error. R1 reads: "
+                    + str(read_1_count)
+                    + " != R2 reads:"
+                    + str(read_2_count)
+                )
+                return "fqtools error"
             else:
                 logger.info("fqtools finished.")
                 return read_1_count
@@ -148,117 +109,216 @@ def get_read_count(forward_read, reverse_read=""):
         return read_1_count
 
 
-def get_read_count_fastp(forward_read, reverse_read=""):
-    """Small helper function to get the number of reads in a file with fastp
+def blast_for_type(fastq_file, db_dict={}):
+    """Method to attempt to resolve prep type via blast
 
-    Note: now replaced by faster version for get_read_count using fqtools
+    This method is an attempt to handle the common case where
+    the target_gene is not provided for AMPLICON or OTHER data.
+    In this case, the top 100 reads in the fastq file will
+    be extracted, converted to .fasta and blasted against the
+    NCBI 16S, 18S, and ITS databases. The resulting evalues are
+    then averaged and compared and the database with the lowest
+    average evalue is presumed to be the target gene
 
     Parameters
-    ----------
-    forward_read: string
-        path to the forward read
-    reverse_read: string
-        Optional: path to the reverse read
+    -----------
+    fastq_file: string
+        filepath to fastq file
+    db_dict: dict
+        dict of blast databases
 
     Returns
     ----------
-    total_reads: int
-        the number of reads in the file
-
 
     """
-    fastp_args = [
-        "fastp",
-        "-j",
-        "temp.json",
-        "-h",
-        "",
-        "-i",
-        forward_read,
-    ]
-
-    if reverse_read != "":
-        fastp_args += ["-I", reverse_read]
-
-    # now generating a report of the current state and what would happen
-    fastp_ps = Popen(fastp_args)
-    fastp_ps.wait()
-
-    if not path.isfile("temp.json"):
-        logger.warning("Report generation failed.")
-        return "fastp error"
-    else:
-        logger.info("Fastp finished.")
-        with open("temp.json") as json_file:
-            fastp_results = json.load(json_file)
-        summary = fastp_results["summary"]
-        total_reads = summary["before_filtering"]["total_reads"]
-        remove("temp.json")
-
-        return total_reads
-
-
-def unpack_fastq_ftp(fastq_ftp, fastq_md5, sep=";"):
-    """Unpacks the ftp and md5 field from EBI metadata
-
-    Takes paired set of ebi-format fastq_ftp and fastq_md5
-    string values and parses them into a dictionary to be used for
-    downloading and using a checksum to validate the downloads
-
-    Parameters
-    ----------
-    fastq_ftp: string
-        string of semicolon separated ftp filepaths
-    fastq_md5: string
-        string of semicolon separated md5 checksums
-
-    Returns
-    ----------
-    remote_dict: dict
-        dict of paired ftp filepaths and md5 checksums
-    """
-    remote_dict = {}
-    ftp_list = fastq_ftp.split(sep)
-    logger.info(ftp_list)
-    md5_list = fastq_md5.split(sep)
-
-    if len(ftp_list) == 0:
-        error_msg = (
-            "No ftp files present. Check study details"
-            + " as access may be restricted"
+    if len(db_dict) == 0:  # assume we're on barnacle
+        barnacle_fp = (
+            "/panfs/panfs1.ucsd.edu/panscratch/qiita/qebil/databases/blast/"
         )
-        logger.warning(error_msg)
+        db_dict = {
+            "16S": barnacle_fp + "16S_ribosomal_RNA",
+            "18S": barnacle_fp + "18S_fungal_sequences",
+            "ITS_a": barnacle_fp + "ITS_eukaryote_sequences",
+            "ITS_b": barnacle_fp + "ITS_RefSeq_Fungi",
+        }
+
+    # take the head of the fastq file to query
+    fastq_head = get_fastq_head(fastq_file)
+    fasta_file = fastq_to_fasta(fastq_head)
+
+    # now query via blastn to find best match
+    match = "AMBIGUOUS"
+    min_eval = 1
+
+    for db_type in db_dict.keys():
+        db = db_dict[db_type]
+        tmp_res = fastq_file + ".tmp_" + db_type + ".tsv"
+        blastn_args = [
+            "blastn",
+            "-query",
+            fasta_file,
+            "-task",
+            "blastn",
+            "-db",
+            db,
+            "-outfmt",
+            "6",
+            "-max_hsps",
+            "1",
+            "-max_target_seqs",
+            "5",
+            "-num_threads",
+            "4",
+            "-out",
+            tmp_res,
+        ]
+        blastn_string = " ".join(blastn_args)
+        blastn_ps = Popen(blastn_args)
+        blastn_ps.wait()
+
+        if blastn_ps.returncode == 0:
+            if path.isfile(tmp_res):
+                try:
+                    res_df = pd.read_csv(tmp_res, sep="\t", header=None)
+                except EmptyDataError:
+                    logger.warning(
+                        "Error running blastn with parameters: "
+                        + blastn_string
+                        + "\n No results in file for "
+                        + str(db_type)
+                    )
+            if len(res_df) > 0:
+                mean_eval = np.mean(list(res_df[10]))
+                logger.info(db_type + " " + str(mean_eval))
+                if mean_eval < min_eval:
+                    match = db_type[:3]
+                    min_eval = mean_eval
+            else:
+                logger.warning(
+                    "Error running blastn with parameters: "
+                    + blastn_string
+                    + "\n No results in file for "
+                    + str(db_type)
+                )
+        else:
+            logger.warning(
+                "Error running blastn with parameters: " + blastn_string
+            )
+
+        # clean up temp files
+        remove(tmp_res)
+
+    logger.info("blastn complete. Best match is :" + match)
+
+    # clean up fasta and fastq_head
+    remove(fastq_head)
+    remove(fasta_file)
+
+    return match
+
+
+def get_read_length(fastq_file):
+    """Helper method to get the average length of
+    reads in fastq file"""
+
+    length = "error"
+    if path.isfile(fastq_file):
+        fqtools_args = [
+            "fqtools",
+            "lengthtab",
+            fastq_file,
+        ]
+        fqtools_ps = Popen(fqtools_args, stdout=PIPE)
+        res = fqtools_ps.communicate()[0]
+        res = res.decode().replace("\n", "")
+
+        if fqtools_ps.returncode == 0:
+            length = res.split("\t")[0]
+        else:
+            logger.warning(
+                "failed to get count of "
+                + fastq_file
+                + ". Check format and filesize."
+            )
     else:
-        read_counter = 0
-        while read_counter < len(ftp_list):
-            read_dict = {}
-            read_dict["ftp"] = ftp_list[read_counter]
-            read_dict["md5"] = md5_list[read_counter]
-            read_counter += 1
-            remote_dict["read_" + str(read_counter)] = read_dict
+        logger.warning("Could not find fastq file: " + fastq_file)
 
-    return remote_dict
+    return length
 
 
-def remove_index_read_file(file_list):
-    """Simple method to quickly remove and rename files when
-    the user indicates that the first read (R1) is an index
-    and the other read(s) are the sequences
+def get_fastq_head(fastq_file, head_fn="", head_size=100):
+    """Helper method to get head of fastq file
 
     Parameters
-    ----------
-    file_list: list
-        list of string filepaths to modify
+    -----------
+
 
     Returns
-    ----------
-    None
+    -----------
+
 
     """
-    for f in file_list:
-        if "_R1." in f:
-            remove(f)
-        elif "_R2." in f:
-            move(f, f.replace("_R2.", "_R1."))
-        elif "_R3." in f:
-            move(f, f.replace("_R3.", "_R2."))
+    if head_fn == "":
+        head_fn = fastq_file.replace(".fastq.gz", ".head.fastq.gz")
+
+    if path.isfile(fastq_file):
+        fqtools_args = [
+            "fqtools",
+            "head",
+            "-n",
+            str(head_size),
+            "-o",
+            head_fn.replace(".fastq.gz", ""),  # .fastq.gz auto-added
+            fastq_file,
+        ]
+        fqtools_ps = Popen(fqtools_args)
+        fqtools_ps.wait()
+
+        if fqtools_ps.returncode != 0:
+            logger.warning(
+                "failed to get head of "
+                + fastq_file
+                + ". Check format and filesize."
+            )
+            head_fn = "error"
+    else:
+        logger.warning("Could not find fastq file: " + fastq_file)
+        head_fn = "error"
+
+    return head_fn
+
+
+def fastq_to_fasta(fastq_file, fasta_filename=""):
+    """Helper method to convert fastq file to fasta file"""
+    if fasta_filename == "":
+        fasta_filename = fastq_file.replace(".fastq.gz", ".fasta")
+
+    if path.isfile(fastq_file):
+        fqtools_args = [
+            "fqtools",
+            "-F",
+            "F",
+            "fasta",
+            "-o",
+            fasta_filename.replace(".fasta", ""),  # .fasta auto-added
+            fastq_file,
+        ]
+        fqtools_ps = Popen(fqtools_args)
+        fqtools_ps.wait()
+
+        if fqtools_ps.returncode != 0:
+            logger.warning(
+                "failed to convert "
+                + fastq_file
+                + " to .fasta; check format and filesize."
+            )
+            fasta_filename = "error"
+    else:
+        logger.warning(
+            "Could not find fastq file: "
+            + fastq_file
+            + " to convert to .fasta"
+        )
+        fasta_filename = "error"
+
+    return fasta_filename

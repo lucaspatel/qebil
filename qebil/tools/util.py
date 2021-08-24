@@ -1,13 +1,14 @@
 import hashlib
 from os import makedirs, path, remove
 import pandas as pd
+import numpy as np
 import PyPDF2
 import re
 import requests
-
-# from requests.exceptions import RequestException
+from shutil import move
 import urllib
-from urllib.request import urlretrieve
+
+from qebil.tools.fastq import get_read_length, get_read_count
 
 from qebil.log import logger
 
@@ -43,87 +44,19 @@ def load_project_file(filepath):
     return add_list
 
 
-def retrieve_ftp_file(ftp_path, filepath, remote_checksum, overwrite=False):
-    """Method to retrieve an ftp file and check accuracy
-    of the download. If not overwriting, check the local copy for validity
-    before downloading.
+def get_checksum(filepath, compare_md5=""):
+    """Gets the checksum of a file, comparing with expected value if provided
 
-    Parameters
-    ----------
-    ftp_path: string:
-        the ftp url to download from
-    filepath: string
-        the local path to save the file to
-    remote_checksum: string
-        hexadecimal md5 checksum to validate the downlod
-    overwrite : bool
-        whether to overwrite the local copy of the file
-
-    Returns
-    ---------
-    checksum: str or bool
-        returns either the string for the checksum or False
-        if there is an issue with the download or integrity
-
-    """
-    # see if the file exists and make sure it's valid if so
-    local = False
-    if not overwrite:
-        if path.isfile(filepath):
-            checksum = check_download_integrity(filepath, remote_checksum)
-            if checksum:
-                local = True
-                logger.info(
-                    "Valid file found. Skipping download of file: "
-                    + "ftp://"
-                    + ftp_path
-                    + " to "
-                    + filepath
-                )
-                return checksum
-            else:
-                logger.warning(
-                    "Local file found but invalid checksum."
-                    + " Downloading again: "
-                    + "ftp://"
-                    + ftp_path
-                    + " to "
-                    + filepath
-                )
-
-    if not local:
-        # add catch in case there is an issue with the connection
-        try:
-            urlretrieve("ftp://" + ftp_path, filepath)
-            checksum = check_download_integrity(filepath, remote_checksum)
-            return checksum
-        except urllib.error.URLError:  # RequestException:
-            logger.warning(
-                "Issue with urlretrieve for "
-                + "download of file:"
-                + "ftp://"
-                + ftp_path
-                + " to "
-                + filepath
-            )
-            # cleanup file if present
-            if path.isfile(ftp_path):
-                remove(ftp_path)
-            return False
-
-
-def check_download_integrity(filepath, md5_value):
-    """Compares the checksum of local and remote files for validation
-
-    This function compares the expected md5 check sum based on the
-    remote file information with the md5 checksum from the specified
-    locatl file. Returns False if they do not match or the checksum
-    value if they do.
+    Obtains the checksum of a file and compares with the expected
+    md5 checksum if provided. Returns False if they do not match
+    or the checksum value if they do.
 
     Parameters
     ----------
     filepath: string
         the path to the file or URL to be scraped
+    compare_md5: string
+        expected md5 checksum value
 
     Returns
     ---------
@@ -136,8 +69,10 @@ def check_download_integrity(filepath, md5_value):
         fq_contents = fq.read()
         fq.close()
         local_checksum = hashlib.md5(fq_contents).hexdigest()
+        if compare_md5 == "":
+            compare_md5 = local_checksum
 
-        if md5_value != local_checksum:
+        if compare_md5 != local_checksum:
             return False
         else:
             return local_checksum
@@ -174,13 +109,15 @@ def parse_document(filepath):
         if request.status_code == 200:
             if filepath[-3:] == "pdf":
                 file_name, headers = urllib.request.urlretrieve(filepath)
-                document = PyPDF2.PdfFileReader(open(file_name, "rb"))
+                pdf_file = open(file_name, "rb")
+                document = PyPDF2.PdfFileReader(pdf_file)
                 for i in range(document.numPages):
                     page_to_print = document.getPage(i)
                     full_text += page_to_print.extractText()
                 tokens = [
                     t for t in re.split(r"\; |\, |\. | |\n|\t", full_text)
                 ]
+                pdf_file.close()
             else:
                 full_text = request.text
                 tokens = [
@@ -191,19 +128,21 @@ def parse_document(filepath):
                 ]
     else:
         if filepath[-3:] == "pdf":
-            document = PyPDF2.PdfFileReader(open(filepath, "rb"))
+            pdf_file = open(filepath, "rb")
+            document = PyPDF2.PdfFileReader(pdf_file)
             for i in range(document.numPages):
                 page_to_print = document.getPage(i)
-                full_text += page_to_print.extractTexit()
+                full_text += page_to_print.extractText()
             tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", full_text)]
+            pdf_file.close()
         else:
             text_file = open(filepath, "r")
             full_text = text_file.read()
-            text_file.close()
             tokens = [
                 t
                 for t in re.split(r"\;|\,|\.| |\n|\t|<|>|\/|\"|'", full_text)
             ]
+            text_file.close()
 
     return tokens
 
@@ -332,7 +271,7 @@ def setup_output_dir(output_dir):
         output_dir += "/"
 
     if not path.exists(output_dir):
-        makedirs(output_dir)
+        makedirs(output_dir, exist_ok=True)  # exist_ok shouldn't be an issue?
 
     return output_dir
 
@@ -343,3 +282,301 @@ def detect_qiita_study(metadata):
         return metadata["qiita_study_id"].unique()
     else:
         return False
+
+
+def parse_details(xml_dict, null_val="XXEBIXX"):
+    """Method to parse study details from xml dict
+
+    Parameters
+    -----------
+    study_details: dict
+        dict of study details parsed from xml
+
+    Returns
+    ----------
+    desc_dict: dict
+        parsed details
+
+    """
+
+    result_dict = {
+        "abstract": null_val,
+        "description": null_val,
+        "title": null_val,
+        "seq_method": [],
+    }
+
+    parse_dict = xml_dict["STUDY_SET"]["STUDY"]
+    if "DESCRIPTOR" not in parse_dict.keys():
+        logger.warning(
+            "No DESCRIPTOR values found. Using " + null_val + " for values."
+        )
+        return result_dict
+    else:
+        desc_dict = parse_dict["DESCRIPTOR"]
+
+    if len(desc_dict) > 0:
+        if "STUDY_ABSTRACT" in desc_dict.keys():
+            result_dict["abstract"] = desc_dict["STUDY_ABSTRACT"]
+
+        elif "ABSTRACT" in desc_dict.keys():
+            result_dict["abstract"] = desc_dict["ABSTRACT"]
+        else:
+            logger.warning(
+                "No abstract found, using " + null_val + " for abstract"
+            )
+
+        if "STUDY_DESCRIPTION" in desc_dict.keys():
+            result_dict["description"] = desc_dict["STUDY_DESCRIPTION"]
+        elif "DESCRIPTION" in desc_dict.keys():
+            result_dict["description"] = desc_dict["DESCRIPTION"]
+        else:
+            logger.warning(
+                "No description found, using " + null_val + " for description"
+            )
+
+        if "@alias" in parse_dict.keys():
+            alias = parse_dict["@alias"]
+            logger.warning(
+                "Found EBI alias, appending '" + alias + "' to description"
+            )
+            if result_dict["description"] == null_val:
+                result_dict["description"] = alias
+            else:
+                result_dict["description"] += alias
+
+        if "STUDY_TITLE" in desc_dict.keys():
+            result_dict["title"] = desc_dict["STUDY_TITLE"]
+        elif "TITLE" in desc_dict.keys():
+            result_dict["title"] = desc_dict["TITLE"]
+        else:
+            logger.warning("No title found, using " + null_val + " for title")
+
+        for k in result_dict.keys():
+            if result_dict[k] != null_val and k != "seq_method":
+                result_dict["seq_method"] += scrape_seq_method(result_dict[k])
+    return result_dict
+
+
+def scrape_seq_method(study_text):
+    """Method to search text for relevant sequencing methods"""
+    valid_methods = [
+        "16s",
+        "18s",
+        "its1",
+        "its2",
+        "shotgun",
+    ]
+    study_text = study_text.lower()
+    tokens = [t for t in re.split(r"\; |\, |\. | |\n|\t", study_text)]
+    found_methods = [t for meth in valid_methods for t in tokens if meth in t]
+    return found_methods
+
+
+def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
+    """Unpacks the ftp and md5 field from EBI metadata
+
+    Takes paired set of ebi-format fastq_ftp and fastq_md5
+    string values and parses them into a dictionary to be used for
+    downloading and using a checksum to validate the downloads
+
+    Parameters
+    ----------
+    fastq_ftp: string
+        string of semicolon separated ftp filepaths
+    fastq_md5: string
+        string of semicolon separated md5 checksums
+    fastq_bytes: string
+        string of semicolon separated file sizes
+    layout: int
+        number of string expected
+
+
+    Returns
+    ----------
+    remote_dict: dict
+        dict of paired ftp filepaths and md5 checksums
+    """
+    remote_dict = {}
+    error_msg = ""
+    ftp_list = fastq_ftp.split(sep)
+    md5_list = fastq_md5.split(sep)
+    bytes_list = [int(b) for b in fastq_bytes.split(sep)]
+
+    if len(ftp_list) == 0:
+        error_msg = (
+            "No ftp files present. Check study details"
+            + " as access may be restricted; skipping"
+        )
+    elif len(ftp_list) > 3:
+        error_msg = "More than 3 read files in ftp, skipping"
+    elif len(ftp_list) > layout:
+        error_msg = "More read files than expected in ftp."
+        min_bytes = min(bytes_list)
+        read_counter = 0
+        read_num = 1
+        while read_counter < len(ftp_list):
+            read_dict = {}
+            read_dict["ftp"] = ftp_list[read_counter]
+            read_dict["md5"] = md5_list[read_counter]
+            read_dict["bytes"] = bytes_list[read_counter]
+            read_counter += 1
+            if read_dict["bytes"] == min_bytes:
+                remote_dict["read_0"] = read_dict
+            else:
+                remote_dict["read_" + str(read_num)] = read_dict
+                read_num += 1
+    elif len(ftp_list) < layout:
+        error_msg = "Fewer read files than expected in ftp."
+    else:
+        read_counter = 0
+        while read_counter < len(ftp_list):
+            read_dict = {}
+            read_dict["ftp"] = ftp_list[read_counter]
+            read_dict["md5"] = md5_list[read_counter]
+            read_dict["bytes"] = bytes_list[read_counter]
+            read_counter += 1
+            remote_dict["read_" + str(read_counter)] = read_dict
+
+    return remote_dict, error_msg
+
+
+def remove_index_read_file(fastq_dict, layout):
+    """Simple method to quickly remove and rename files to
+    handle samples with index files
+
+    Parameters
+    ----------
+    file_prefix: string
+        file_prefix to glob
+
+    Returns
+    ----------
+    None
+
+    """
+    new_fastq_dict = fastq_dict
+    file_prefix = (
+        fastq_dict["read1"]["fp"]
+        .split("/")[-1]
+        .replace(".R1.ebi.fastq.gz", "")
+    )
+    if layout.lower() == "single":
+        expected_files = 1
+    elif layout.lower() == "paired":
+        expected_files = 2
+    else:
+        logger.warning(
+            "layout: "
+            + str(layout)
+            + " not valid for removing index read file."
+        )
+
+    if len(fastq_dict) == expected_files:
+        logger.info(
+            "Expected file count matches found file count for prefix "
+            + file_prefix
+            + ". Skipping index read removal."
+        )
+    elif len(fastq_dict) <= 3:
+        logger.info(
+            "More reads ("
+            + str(len(fastq_dict))
+            + ") than expected for layout "
+            + layout
+            + " Attempting to identify and remove index file"
+        )
+
+        index_file = ""
+        read_length_dict = {}
+        for f in fastq_dict.keys():
+            print(f)
+            read_length = get_read_length(fastq_dict[f]["fp"])
+            if read_length.isnumeric():
+                read_length_dict[f] = int(read_length)
+            else:
+                logger.warning(
+                    "Read length for "
+                    + fastq_dict[f]["fp"]
+                    + " is non-numeric. Setting to 0."
+                )
+                read_length_dict[f] = 0
+
+        read_lengths = [int(r) for r in list(read_length_dict.values())]
+
+        if int(np.min(read_lengths)) >= int(np.mean(read_lengths)) / 2:
+            logger.warning(
+                "Minimum and mean read lengths are <2-fold different for."
+                + file_prefix
+                + " Attempting to compare read counts instead."
+            )
+
+            read_count_dict = {}
+
+            for f in fastq_dict.keys():
+                print(f)
+                read_count = get_read_count(fastq_dict[f]["fp"])
+                if read_count.isnumeric():
+                    read_count_dict[f] = int(read_count)
+                else:
+                    logger.warning(
+                        "Read count for "
+                        + fastq_dict[f]["fp"]
+                        + " is non-numeric. Setting to 0."
+                    )
+                    read_count_dict[f] = 0
+
+            read_counts = [int(r) for r in list(read_count_dict.values())]
+
+            if int(np.min(read_counts)) == int(np.mean(read_counts)):
+                # this is the case when all three reads have the same count
+                logger.warning(
+                    +" Could not identify index read file for"
+                    + file_prefix
+                    + " read counts and length same for all files."
+                )
+            else:
+                print(read_count_dict)
+                index_file = min(read_count_dict, key=read_count_dict.get)
+        else:
+            index_file = min(read_length_dict, key=read_length_dict.get)
+
+        if index_file != "":
+            logger.info(
+                index_file
+                + " identified as index for "
+                + file_prefix
+                + " Removing and renaming other file(s)."
+            )
+            remove(fastq_dict[index_file]["fp"])
+            index_read_num = index_file[-1]
+            if int(index_read_num) == 1:
+                # typically read1 is expected to be the index read if present
+                # move read2 to replace read1's filepath
+                move(fastq_dict["read2"]["fp"], fastq_dict[index_file]["fp"])
+                # update read1's md5 to be that of the former read2
+                new_fastq_dict["read1"]["md5"] = fastq_dict["read2"]["md5"]
+                if "read3" in fastq_dict.keys():
+                    # move read3 to the now removed read2 filepath
+                    move(fastq_dict["read3"]["fp"], fastq_dict["read2"]["fp"])
+                    # update read2's md to that of the former read3
+                    new_fastq_dict["read2"]["md5"] = fastq_dict["read3"][
+                        "md5"
+                    ]
+                    # remove read3 from the dict
+                    del new_fastq_dict["read3"]
+            elif "read3" in fastq_dict.keys():
+                # if read2 is removed and there were only two, no action needed
+                # otherwise move read3 to read 2
+                move(fastq_dict["read3"]["fp"], fastq_dict["read2"]["fp"])
+                # update read2's md to that of the former read3
+                new_fastq_dict["read2"]["md5"] = fastq_dict["read3"]["md5"]
+                # remove read3 from the dict
+                del new_fastq_dict["read3"]
+    else:
+        logger.warning(
+            "Removing index read files not implemented for >3 reads."
+        )
+        # TODO: handle samples with 4 reads (two index files?
+
+    return new_fastq_dict

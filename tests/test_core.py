@@ -8,9 +8,6 @@ from pandas.testing import assert_frame_equal
 from qebil.core import Study
 from qebil.tools.metadata import load_metadata
 
-from qebil.tools.util import setup_output_dir
-
-
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
 
 _TEST_SUPPORT_DIR = path.join(_THIS_DIR, "support_files")
@@ -116,7 +113,8 @@ class StudyTest(unittest.TestCase):
         )
         test_df["sample_name"] = test_df["sample_accession"]
         test_df = test_df.set_index("sample_name")
-        # print(valid_study.metadata.columns)
+        print(valid_study.metadata.columns)
+        print(test_df.columns)
         assert_frame_equal(
             valid_study.metadata.sort_index(axis=1),
             test_df.sort_index(axis=1),
@@ -151,8 +149,8 @@ class StudyTest(unittest.TestCase):
             self.test_study_valid_id, full_details=True, max_samples=2
         )
         test_df = load_metadata(self.test_study_valid_tsv)
-        print(test_study.metadata.columns)
-        print(test_df.columns)
+        # print(test_study.metadata.columns)
+        # print(test_df.columns)
         self.assertEqual(test_study.metadata.shape, test_df.shape)
 
     def test_populate_expt_info_and_preps(self):
@@ -168,7 +166,11 @@ class StudyTest(unittest.TestCase):
             index_col=0,
         )
         prep_cols = test_df.columns
+        # print("prep_cols:" + str(prep_cols))
         prep_subset = test_study.metadata[prep_cols]
+        prep_subset.index = prep_subset.index.rename("sample_name")
+        print("prep_subset:" + prep_subset.head(1))
+        print("prep_subset:" + test_df.head(1))
         assert_frame_equal(
             prep_subset.sort_index(axis=1), test_df.sort_index(axis=1)
         )

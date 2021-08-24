@@ -7,12 +7,21 @@ from qebil.log import logger
 from qebil.fetch import fetch_fastq_files
 from qebil.tools.fastq import (
     get_read_count,
-    unpack_fastq_ftp,
     check_valid_fastq,
 )
+from qebil.output import write_metadata_files
+from qebil.tools.util import unpack_fastq_ftp
 
 
-def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
+def deplete_on_the_fly(
+    study,
+    cpus=4,
+    output_dir="./",
+    keep_files=True,
+    prefix="",
+    max_prep=250,
+    remove_index=True,
+):
     """Processes a study sample-by-sample to filter and deplete human reads
 
     For human studies, it is convenient to on-the-fly host deplete for
@@ -48,10 +57,15 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
         study.populate_preps()
 
     md = study.metadata
+    layout_dict = {"single": 1, "paired": 2}
 
     for index in md.index:
         run_prefix = md.at[index, "run_prefix"]
         model = md.at[index, "instrument_model"]
+        layout = str(md.at[index, "library_layout"]).lower()
+
+        if layout in layout_dict.keys():
+            expected_num_read_files = layout_dict[layout]
         try:
             raw_reads = str(md.at[index, "qebil_raw_reads"])
             logger.info(
@@ -93,60 +107,114 @@ def deplete_on_the_fly(study, cpus=4, output_dir="./", keep_files=True):
             )
             mb_reads = "not determined"
 
-        prep_file_type = md.at[index, "qebil_prep_file"].split("_")[0]
-        ebi_dict = unpack_fastq_ftp(
-            md.at[index, "fastq_ftp"], md.at[index, "fastq_md5"]
+        prep_file_type = md.at[index, "qebil_prep_file"].split("_")[1]
+        ebi_dict, error = unpack_fastq_ftp(
+            md.at[index, "fastq_ftp"],
+            md.at[index, "fastq_md5"],
+            md.at[index, "fastq_bytes"],
+            expected_num_read_files,
         )
-
-        if not raw_reads.isnumeric():
-            # this value should only be set if downloaded
-            md.at[index, "qebil_raw_reads"] = fetch_fastq_files(
-                run_prefix, ebi_dict, output_dir
-            )
-            raw_reads = md.at[index, "qebil_raw_reads"]
-            print("raw reads after fff:" + str(raw_reads))
-        if not filtered_reads.isnumeric():
-            # this value should only be set if filtered
-            md.at[index, "qebil_quality_filtered_reads"] = run_fastp(
-                run_prefix, raw_reads, model, output_dir, cpus, keep_files
-            )
-            filtered_reads = str(md.at[index, "qebil_quality_filtered_reads"])
-            md.at[index, "qebil_frac_reads_passing_filter"] = int(
-                filtered_reads
-            ) / int(raw_reads)
-            print(
-                "% suriving filter: "
-                + str(md.at[index, "qebil_frac_reads_passing_filter"])
-            )
-        # check to make sure the data can be host_depleted
-        if prep_file_type not in ["Metagenomic", "Metatranscriptomic"]:
+        if "skipping" in error:
             logger.warning(
-                "Skipping host depletion for "
-                + run_prefix
-                + " library_strategy: "
-                + prep_file_type
-                + " invalid for host depletion."
+                "Issue retrieving file(s) for " + run_prefix + ": " + error
             )
         else:
-            # this value should only be set if host filtering finished
-            if not mb_reads.isnumeric():
-                md.at[index, "qebil_non_host_reads"] = run_host_depletion(
-                    run_prefix,
-                    filtered_reads,
+            if not raw_reads.isnumeric():
+                # this value should only be set if downloaded
+                raw_reads, local_read_dict, notes = fetch_fastq_files(
+                    run_prefix, ebi_dict, output_dir
+                )
+                md.at[index, "qebil_raw_reads"] = raw_reads
+                logger.info("raw reads after download:" + str(raw_reads))
+                # need to update metadata to not lose progress
+                study.metadata = md
+                write_metadata_files(
+                    {study.proj_id: study},
                     output_dir,
-                    cpus,
-                    keep_files,
+                    prefix,
+                    prep_max=max_prep,
+                    fastq_prefix=".ebi",
+                    write_preps=False,
                 )
-                filtered_reads = str(
-                    md.at[index, "qebil_quality_filtered_reads"]
+            if not filtered_reads.isnumeric() and raw_reads.isnumeric():
+                # this value should only be set if filtered
+                filtered_reads = run_fastp(
+                    run_prefix, raw_reads, model, output_dir, cpus, keep_files
                 )
-                mb_reads = str(md.at[index, "qebil_non_host_reads"])
-                md.at[index, "qebil_frac_non_host_reads"] = int(
-                    mb_reads
-                ) / int(filtered_reads)
 
-    # update study metadata
-    return md
+                if str(filtered_reads).isnumeric():
+                    # need to correct number based on layout since
+                    # fastp provides R1+R2 reads as total reads
+                    filtered_reads = (
+                        int(int(filtered_reads) / int(expected_num_read_files))
+                    )
+
+                    md.at[index, "qebil_frac_reads_passing_filter"] = int(
+                        filtered_reads
+                    ) / int(raw_reads)
+                    logger.info(
+                        "frac surviving filter: "
+                        + str(md.at[index, "qebil_frac_reads_passing_filter"])
+                    )
+
+                # update metadata regardless of success or failure
+                md.at[index, "qebil_quality_filtered_reads"] = str(
+                    filtered_reads
+                )
+
+                # need to update metadata to not lose progress
+                study.metadata = md
+                write_metadata_files(
+                    {study.proj_id: study},
+                    output_dir,
+                    prefix,
+                    prep_max=max_prep,
+                    fastq_prefix=".fastp",
+                    write_preps=False,
+                )
+
+            # check to make sure the data can be host_depleted
+            if prep_file_type not in ["Metagenomic", "Metatranscriptomic"]:
+                logger.warning(
+                    "Skipping host depletion for "
+                    + run_prefix
+                    + " library_strategy: "
+                    + prep_file_type
+                    + " invalid for host depletion."
+                )
+            else:
+                # this value should only be set if host filtering finished
+                if not str(mb_reads).isnumeric() and str(filtered_reads).isnumeric():
+                    md.at[index, "qebil_non_host_reads"] = run_host_depletion(
+                        run_prefix,
+                        filtered_reads,
+                        output_dir,
+                        cpus,
+                        keep_files,  # note need to see how this behaves
+                    )
+                    filtered_reads = str(
+                        md.at[index, "qebil_quality_filtered_reads"]
+                    )
+                    mb_reads = str(md.at[index, "qebil_non_host_reads"])
+                    if mb_reads.isnumeric():
+                        md.at[index, "qebil_frac_non_host_reads"] = int(
+                            mb_reads
+                        ) / int(filtered_reads)
+                        logger.info(
+                            "frac mbDNA: "
+                            + str(md.at[index, "qebil_frac_non_host_reads"])
+                        )
+                    # need to update metadata to not lose progress
+                    study.metadata = md
+                    write_metadata_files(
+                        {study.proj_id: study},
+                        output_dir,
+                        prefix,
+                        prep_max=max_prep,
+                        fastq_prefix=".filtered",
+                    )
+
+    return study
 
 
 def run_fastp(
@@ -323,7 +391,7 @@ def run_fastp(
                         if path.isfile(f):
                             remove(f)
 
-                return filtered_reads
+                return str(int(filtered_reads))
 
 
 def run_host_depletion(
@@ -367,6 +435,7 @@ def run_host_depletion(
 
     # list to be used to confirm things worked as expected
     confirm_list = []
+    mb_reads = "minimap2 error"
 
     forward_reads = glob.glob(
         output_dir + "/" + run_prefix + ".R1.fastp.fastq.gz"
@@ -455,7 +524,7 @@ def run_host_depletion(
             )
         else:
             logger.info("Starting minimap2 depletion.")
-            f = open(run_prefix + "_minimap2.start", "a")
+            f = open(output_dir + "/" + run_prefix + "_minimap2.start", "a")
             f.close()
 
             minimap2_ps = Popen(minimap2_args, stdout=PIPE, stderr=PIPE)
@@ -464,7 +533,7 @@ def run_host_depletion(
             )
             minimap2_ps.stdout.close()
             stf_ps.communicate()
-            remove(run_prefix + "_minimap2.start")
+            remove(output_dir + "/" + run_prefix + "_minimap2.start")
 
         # now make sure the output files are valid with fastqs
         confirm = True
@@ -493,4 +562,4 @@ def run_host_depletion(
                     remove(c)
             mb_reads = "minimap2 error"
 
-    return mb_reads
+    return str(int(mb_reads))

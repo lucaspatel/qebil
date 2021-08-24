@@ -79,7 +79,7 @@ def load_metadata(filename):
                 if not found_sn:
                     if s in tmp_df.columns:
                         found_sn = True
-                        tmp_df["sample_name"] = tmp_df[s]
+                        tmp_df = tmp_df.rename(columns={s: "sample_name"})
                         logger.warning("'sample_name' mapped from: " + s)
 
         if "sample_name" not in list(tmp_df.columns):
@@ -104,7 +104,7 @@ def load_metadata(filename):
                     if not found_sn:
                         if s in tmp_df.columns:
                             found_sn = True
-                            tmp_df["sample_name"] = tmp_df[s]
+                            tmp_df = tmp_df.rename(columns={s: "sample_name"})
                             logger.warning("'sample_name' mapped from: " + s)
 
         if len(tmp_df) > 0 and "sample_name" in list(tmp_df.columns):
@@ -142,7 +142,7 @@ def load_metadata(filename):
     return load_df
 
 
-def format_prep_type(row, sample_name):
+def format_prep_type(row, sample_name, seq_methods=[]):
     """Maps EBI library strategies to Qiita prep types
 
     Method to map  EBI library strategies to Qiita prep types. For amplicon
@@ -167,22 +167,23 @@ def format_prep_type(row, sample_name):
 
     amplicon_list = ["AMPLICON", "OTHER"]
     amplicon_dict = {
-        "16S rRNA": "16S",
-        "16S": "16S",
-        "16S rDNA": "16S",
-        "16S RNA": "16S",
-        "16S DNA": "16S",
-        "16S ": "16S",
-        "ITS": "ITS",
-        "ITS1": "ITS",
-        "ITS2": "ITS",
-        "ITS ": "ITS",
-        "18S rRNA": "18S",
-        "18S rDNA": "18S",
-        "18S": "18S",
-        "18S RNA": "18S",
-        "18S DNA": "18S",
-        "18S ": "18S",
+        "16s rna": "16S",
+        "16s rrna": "16S",
+        "16s": "16S",
+        "16s rdna": "16S",
+        "16s rna": "16S",
+        "16s dna": "16S",
+        "16s ": "16S",
+        "its": "ITS",
+        "its1": "ITS",
+        "its2": "ITS",
+        "its ": "ITS",
+        "18s rrna": "18S",
+        "18s rdna": "18S",
+        "18s": "18S",
+        "18s rna": "18S",
+        "18s dna": "18S",
+        "18s ": "18S",
     }
     library_strat_to_qebil_dict = {
         "POOLCLONE": "AMBIGUOUS",
@@ -232,17 +233,35 @@ def format_prep_type(row, sample_name):
             )
     else:
         # since this is amplicon data, there should be a target gene,
-        # if not return AMBIGUOUS
+        # if not check the seq_methods, then return AMBIGUOUS
         try:
-            tg = row["target_gene"]
+            tg = row["target_gene"].lower()
             if tg in amplicon_dict.keys():
                 prep_type = amplicon_dict[tg]
         except Exception:
             logger.warning(
                 "target_gene not found for "
                 + str(sample_name)
-                + ". Setting to 'AMBIGUOUS'."
+                + ". Checking study information."
             )
+            if len(seq_methods) == 1:
+                if seq_methods[0] in amplicon_dict.keys():
+                    prep_type = amplicon_dict[seq_methods[0]]
+                    logger.info(
+                        "Found "
+                        + str(seq_methods[0])
+                        + " as only target gene in study"
+                        + " information. Using as prep_type"
+                        + " but user should check and specify"
+                        + " target subfragment."
+                    )
+                else:
+                    logger.warning(
+                        "seq_methods "
+                        + str(seq_methods)
+                        + " found in study information."
+                        + " Setting to 'AMBIGUOUS'."
+                    )
 
     return prep_type
 
@@ -382,6 +401,7 @@ def detect_merger_column(base_md, supp_md):
 
     for col in supp_md.columns:
         num_supp_unique = supp_md[col].nunique()
+
         if num_supp_unique == num_supp_samples:
             if col in base_md.columns:
                 base_unique = base_md[col].nunique()
@@ -392,6 +412,7 @@ def detect_merger_column(base_md, supp_md):
     for col in auto_col_list:
         if not found_col:
             base_ids = list(base_md[col].unique())
+            supp_md = supp_md[supp_md[col].isin(base_ids)]
             supp_ids = list(supp_md[col].unique())
             if all(x in base_ids for x in supp_ids):
                 supp_col = col
@@ -430,7 +451,10 @@ def merge_metadata(base_md, supp_md, supp_col="sample_name"):
     merged_df: pd.DataFrame
         the resulting pandas DataFrame after attempting to merge
     """
-    merged_df = base_md  # will return base_md if merging fails
+    merged_df = base_md.reset_index()
+    merged_df = merged_df.rename(columns={"index": "sample_name"})
+
+    # will return base_md if merging fails
     num_supp_samples = len(supp_md)
 
     if num_supp_samples > 0:
@@ -440,25 +464,37 @@ def merge_metadata(base_md, supp_md, supp_col="sample_name"):
             supp_col = detect_merger_column(base_md, supp_md)
 
         if supp_col in base_md.columns:
+            # subset supp_md before update and merge to only overlapping IDs
+            base_ids = list(merged_df[supp_col].unique())
+            supp_md = supp_md[supp_md[supp_col].isin(base_ids)]
+
             # update columns with values from supplement
-            base_md.update(supp_md)
+            merged_df.update(supp_md)
 
             # remove shared columns having already updated them
             supp_df = supp_md[
-                supp_md.columns[~supp_md.columns.isin(base_md.columns)]
+                supp_md.columns[~supp_md.columns.isin(merged_df.columns)]
             ]
 
             # kludge, adding back the column needed to merge on
             supp_df[supp_col] = supp_md[supp_col]
 
-            merged_df = base_md.merge(supp_df, how="left", on=supp_col)
+            merged_df = merged_df.merge(supp_df, how="left", on=supp_col)
 
+            # remove columns that are entirely not provided
+            test_na_cols = merged_df.columns
+            for col in test_na_cols:
+                unique = list(merged_df[col].unique())
+                if len(unique) == 1 and unique[0] == "not provided":
+                    merged_df = merged_df.drop([col], axis=1)
         else:
             logger.warning(
                 "Omitting merge of supplemental info. Column '"
                 + supp_col
                 + "' not found in base metadata."
             )
+
+    merged_df = merged_df.set_index("sample_name")
     return merged_df
 
 
@@ -554,28 +590,61 @@ def augment_metadata(base_md, add_md_list=[], merge_col="", emp=False):
             supp_col = merge_col
 
         for f in add_md_list:
+            data_loaded = False
             supp_df = load_metadata(f)
 
-            if len(supp_df) == 0:
+            if len(supp_df) > 0:
+                data_loaded = True
+            elif not path.isfile(f):
                 logger.warning(
-                    "Loaded df was empty, check path and format "
-                    + " and try again. Skipping merge."
-                )
-            elif supp_col not in supp_df.columns:
-                logger.warning(
-                    "Loaded datframe from file: "
-                    + f
-                    + " was missing merge column: "
-                    + supp_col
-                    + "Check names and try again. Skipping merge."
+                    "Supplemental metadata file could not be found."
                 )
             else:
-                supp_df_dict[f] = supp_df
+                logger.warning(
+                    "Supplemental metadata could not be loaded. "
+                    + " Trying again with flexible load."
+                )
+                supp_df = pd.read_csv(f, sep="\t", low_memory=False)
+                if len(supp_df.columns) > 1:
+                    logger.info(
+                        "Loaded dataframe from file: "
+                        + f
+                        + " as tsv with columns: "
+                        + str(supp_df.columns)
+                    )
+                    data_loaded = True
+                else:
+                    supp_df = pd.read_csv(f, low_memory=False)
+                if len(supp_df.columns) > 1:
+                    logger.info(
+                        "Loaded dataframe from file: "
+                        + f
+                        + " as csv with columns: "
+                        + str(supp_df.columns)
+                    )
+                    data_loaded = True
+                else:
+                    logger.warning(
+                        "Supplemental metadata could not be loaded."
+                        + " Check path and format and try again."
+                        + "  Skipping merge."
+                    )
+            if data_loaded:
+                if supp_col != "auto" and supp_col not in supp_df.columns:
+                    logger.warning(
+                        "Loaded dataframe from file: "
+                        + f
+                        + " was missing merge column: "
+                        + supp_col
+                        + "Check names and try again. Skipping merge."
+                    )
+                else:
+                    supp_df_dict[f] = supp_df
 
     # merge supplemental metadata
     for md in supp_df_dict.keys():
         supp_md = supp_df_dict[md]
-        output_df = merge_metadata(base_md, supp_md, supp_col, md)
+        output_df = merge_metadata(base_md, supp_md, supp_col)
 
     # add EMP information to prep info
     if emp:
@@ -709,6 +778,7 @@ def check_qebil_restricted_column(col):
 
     restricted_term_lower = [term.lower() for term in restricted_qebil_terms]
 
+    col = col.lower()
     if col in restricted_term_lower:
         logger.warning(
             col

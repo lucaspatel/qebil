@@ -1,11 +1,9 @@
-from qebil.process import deplete_on_the_fly, run_fastp, run_host_depletion
+from qebil.process import deplete_on_the_fly
 from qebil.tools.fastq import get_read_count
 from qebil.core import Study
 import unittest
 from os import path
-from shutil import copy
-import pandas as pd
-import glob
+
 from qebil.tools.util import setup_output_dir
 
 _THIS_DIR, _THIS_FILENAME = path.split(__file__)
@@ -18,6 +16,9 @@ setup_output_dir(_TEST_OUTPUT_DIR)
 test_study_id = "SRP283872"
 
 
+test_local_fastq_path = _TEST_SUPPORT_DIR + "/SRR13874871.fastq.gz"
+
+
 class ProcessTest(unittest.TestCase):
 
     # https://click.palletsprojects.com/en/7.x/testing/#basic-testing
@@ -27,11 +28,13 @@ class ProcessTest(unittest.TestCase):
         test_study = Study.from_remote(
             test_study_id, full_details=True, max_samples=2
         )
-        md = deplete_on_the_fly(
+        dep_study = deplete_on_the_fly(
             test_study, output_dir=_TEST_OUTPUT_DIR, keep_files=True
         )
+        md = dep_study.metadata
         for index in md.index:
             run_prefix = _TEST_OUTPUT_DIR + md.at[index, "run_prefix"]
+            print(run_prefix)
             expected_raw_reads = str(md.at[index, "qebil_raw_reads"])
             expected_filtered_reads = str(
                 md.at[index, "qebil_quality_filtered_reads"]
@@ -42,23 +45,23 @@ class ProcessTest(unittest.TestCase):
             )
             expected_mb_ratio = str(md.at[index, "qebil_frac_non_host_reads"])
             actual_raw_reads = str(
-                get_read_count(run_prefix + "_R1.ebi.fastq.gz")
+                get_read_count(run_prefix + ".R1.ebi.fastq.gz")
             )
             actual_filtered_reads = str(
-                get_read_count(run_prefix + "_R1.fastp.fastq.gz")
+                get_read_count(run_prefix + ".R1.fastp.fastq.gz")
             )
             actual_mb_reads = str(
-                get_read_count(run_prefix + "_R1.filtered.fastq.gz")
+                get_read_count(run_prefix + ".R1.filtered.fastq.gz")
             )
             self.assertEqual(expected_raw_reads, actual_raw_reads)
             self.assertEqual(expected_filtered_reads, actual_filtered_reads)
             self.assertEqual(expected_mb_reads, actual_mb_reads)
             self.assertEqual(
                 expected_filter_ratio,
-                str(actual_filtered_reads / actual_raw_reads),
+                str(int(actual_filtered_reads)/ int(actual_raw_reads)),
             )
             self.assertEqual(
-                expected_mb_ratio, str(actual_mb_reads / actual_raw_reads)
+                expected_mb_ratio, str(int(actual_mb_reads) / int(actual_filtered_reads))
             )
 
         # now remove the host filtered reads, and run again, make sure the fastp files go away

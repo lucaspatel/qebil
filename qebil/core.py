@@ -8,13 +8,11 @@ from qebil.tools.metadata import (
 )
 from qebil.log import logger
 from qebil.fetch import fetch_ebi_info, fetch_ebi_metadata
-from qebil.tools.util import get_ebi_ids
+from qebil.tools.util import get_ebi_ids, parse_details
 
 
 _QEBIL_PREP_INFO_COLUMNS = [
     "run_prefix",
-    "fastq_ftp",
-    "fastq_md5",
     "study_accession",
     "experiment_accession",
     "platform",
@@ -23,7 +21,6 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "library_source",
     "library_layout",
     "library_selection",
-    "fastq_ftp",
     "ena_checklist",
     "ena_spot_count",
     "ena_base_count",
@@ -37,11 +34,12 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "primer",
     "run_accession",
     "qebil_ebi_import",
-    "qebil_prep_file",
     "experiment_alias",
     "experiment_title",
     "experiment_title_specific",
     "library_name",
+    "qebil_prep_file",
+    'experiment_design_description',
 ]
 
 
@@ -51,6 +49,15 @@ _READ_COLUMNS = [
     "qebil_non_host_reads",
     "qebil_frac_reads_passing_filter",
     "qebil_frac_non_host_reads",
+]
+
+_QEBIL_COLUMNS = [
+    "local_fastq_fp",
+    "local_fastq_md5",
+    "fastq_ftp",
+    "fastq_md5",
+    'fastq_bytes',
+    "qebil_notes",
 ]
 
 
@@ -164,6 +171,45 @@ class Study:
             raise ValueError("Did not receive list, instead: " + value)
         else:
             self._prep_columns = value
+
+    @property
+    def qebil_columns(self):
+        """Gets the columns to be excluded from Qiita information files"""
+        return self._qebil_columns
+
+    @qebil_columns.setter
+    def qebil_columns(self, value):
+        """Gets the columns to be excluded from Qiita information files"""
+        if not isinstance(value, list):
+            raise ValueError("Did not receive list, instead: " + value)
+        else:
+            self._qebil_columns = value
+
+    @property
+    def cpus(self):
+        """Gets the number of cpus available"""
+        return self._cpus
+
+    @cpus.setter
+    def cpus(self, value):
+        """Sets the number of cpus available if int, rejects if other type"""
+        if isinstance(value, int):
+            self._cpus = value
+        else:
+            raise ValueError("Expected int, received " + str(type(value)))
+
+    @property
+    def out_dir(self):
+        """Gets the output directory"""
+        return str(self._out_dir)
+
+    @out_dir.setter
+    def out_dir(self, value):
+        """Sets the output directory if a string"""
+        if not isinstance(value, str):
+            raise ValueError("Did not receive string, instead: " + str(value))
+        else:
+            self._out_dir = value
 
     @classmethod
     def from_remote(
@@ -405,6 +451,9 @@ class Study:
                 self.metadata.at[
                     index, "experiment_title_specific"
                 ] = expt_xml_dict["TITLE"]
+                self.metadata.at[
+                    index, "experiment_design_description"
+                ] = expt_xml_dict["DESIGN"]["DESIGN_DESCRIPTION"]
 
                 try:
                     ea = expt_xml_dict["EXPERIMENT_ATTRIBUTES"][
@@ -583,7 +632,7 @@ class Study:
 
         self.metadata = md
 
-    def populate_preps(self):
+    def populate_preps(self, overwrite=False):
         """Populates the metadata with the information needed for Qiita
 
         Stages the study with qebil_prep_file entries in the metadata to
@@ -611,6 +660,12 @@ class Study:
 
         if len(md) == 0:
             logger.error("Failed to create preps, no samples in metadata")
+        elif "qebil_prep_file" in md.columns:
+            logger.warning(
+                "qebil_prep_file found in metadata, "
+                + "skipping population of preps. "
+                + " Pass overwrite=True to force generation."
+            )
         else:
             try:
                 md["platform"] = md["instrument_platform"]
@@ -645,9 +700,17 @@ class Study:
                 )
                 md["qebil_prep_file"] = layout + "_Genome_Isolate_0"
             else:
+                # frequently the prep_type is returning as ambiguous
+                # so for amplicon data if only one target gene out
+                # of 16S, 18S, or ITS1/2 appears then set this as the
+                # prep_type and target_gene. To enable this, we'll
+                # parse then tokenize the abstract and description
+                seq_methods = parse_details(self.details)["seq_method"]
+
                 for index, row in md.iterrows():
                     sample_name = index
-                    prep_type = format_prep_type(row, index)
+                    prep_type = format_prep_type(row, index, seq_methods)
+
                     layout = row["library_layout"]
                     logger.info("Layout is: " + str(layout))
                     if prep_type not in sample_count_dict:
@@ -694,3 +757,4 @@ class Study:
         self.prep_columns = (
             self.prep_columns + _QEBIL_PREP_INFO_COLUMNS + _READ_COLUMNS
         )
+        self.qebil_columns = _QEBIL_COLUMNS

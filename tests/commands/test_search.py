@@ -1,4 +1,4 @@
-from qebil.commands.search import keyword_search, search_ebi
+from qebil.commands.search import keyword_search
 from qebil.commands.search import search
 import unittest
 from click.testing import CliRunner
@@ -78,7 +78,6 @@ class TestSearch(unittest.TestCase):
 
     def test_keyword_search_method_defaults(self):
         query = "PRJNA660883"
-        test_selection_dict = {}
         test_result = keyword_search(query)
         self.assertEqual(len(test_result), 1)
         self.assertCountEqual(test_result.columns, ["study_id"])

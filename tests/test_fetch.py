@@ -6,10 +6,12 @@ from qebil.fetch import (
     fetch_fastq_files,
     fetch_fastqs,
     fetch_ebi_metadata,
+    retrieve_ftp_file,
 )
 from qebil.core import Study
 import glob
 from os import remove, makedirs, path
+from shutil import copy
 import pandas as pd
 from qebil.log import setup_log
 
@@ -23,12 +25,14 @@ _TEST_OUTPUT_DIR = path.join(_THIS_DIR, "test_output/")
 
 setup_output_dir(_TEST_OUTPUT_DIR)
 
+_CLEANUP_LIST = []
+
 
 def test_stage_output():
     if not path.isdir(_TEST_OUTPUT_DIR):
         makedirs(_TEST_OUTPUT_DIR)
     else:
-        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*")
+        cleanup_list = glob.glob(_TEST_OUTPUT_DIR + "/*.*")
         for c in cleanup_list:
             remove(c)
 
@@ -44,7 +48,6 @@ class FetchTest(unittest.TestCase):
             remove(test_log_file)
 
         setup_log(_TEST_OUTPUT_DIR, prefix, suffix, quiet)
-        from qebil.log import logger
 
     def test_fetch_fastq_files(self):
         test_run_prefix = "SAMN16049500.SRR12672280"
@@ -70,9 +73,9 @@ class FetchTest(unittest.TestCase):
         }
         test_expected_reads = "5740751"
         test_raw_reads = fetch_fastq_files(
-            test_run_prefix, test_read_dict, _TEST_OUTPUT_DIR
+            test_run_prefix, test_read_dict, _TEST_OUTPUT_DIR, "PAIRED"
         )
-        self.assertEqual(str(test_raw_reads), test_expected_reads)
+        self.assertEqual(str(test_raw_reads[0]), test_expected_reads)
 
         # TODO: find corrupted downloads and study with > 2 reads to test error message
 
@@ -1114,6 +1117,32 @@ class FetchTest(unittest.TestCase):
         self.assertEqual(
             list(test_limited_result_df.columns), test_limited_fields
         )
+
+    def test_retrieve_ftp_file(self):
+        test_ftp_path = "ftp.sra.ebi.ac.uk/vol1/fastq/SRR138/071/SRR13874871/SRR13874871.fastq.gz"
+        test_local_fastq_path = _TEST_OUTPUT_DIR + "/SRR13874871.fastq.gz"
+        test_checksum = "06445ed5341e3779ac1d5230c787c538"
+        test_corrupt_fastq_path = (
+            _TEST_SUPPORT_DIR + "/corrupt_fastq1.fastq.gz"
+        )
+        test_overwrite = True
+
+        test_checksum_1 = retrieve_ftp_file(
+            test_ftp_path, test_local_fastq_path, test_checksum
+        )
+
+        self.assertTrue(path.isfile(test_local_fastq_path))
+        self.assertEqual(test_checksum, test_checksum_1)
+
+        copy(test_corrupt_fastq_path, test_local_fastq_path)
+
+        test_checksum_2 = retrieve_ftp_file(
+            test_ftp_path, test_local_fastq_path, test_checksum
+        )
+        self.assertTrue(path.isfile(test_local_fastq_path))
+        self.assertEqual(test_checksum, test_checksum_2)
+
+        # cleanup?
 
 
 if __name__ == "__main__":

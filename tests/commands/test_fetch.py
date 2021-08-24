@@ -50,7 +50,7 @@ class fetchTest(unittest.TestCase):
             test_full_details,
             test_max_samples,
             test_random_subsample,
-            _TEST_OUTPUT_DIR
+            _TEST_OUTPUT_DIR,
         )
         self.assertEqual(
             result_dict[test_study_list[0]].proj_id, test_study_list[0]
@@ -65,7 +65,7 @@ class fetchTest(unittest.TestCase):
         )
 
         results_dict_1 = fetch_remote_studies(
-            test_study_list, test_full_details,output_dir=_TEST_OUTPUT_DIR
+            test_study_list, test_full_details, output_dir=_TEST_OUTPUT_DIR
         )
         self.assertCountEqual(result_dict.keys(), results_dict_1.keys())
 
@@ -74,14 +74,14 @@ class fetchTest(unittest.TestCase):
             test_full_details,
             test_max_samples_num,
             test_random_subsample,
-            _TEST_OUTPUT_DIR
+            _TEST_OUTPUT_DIR,
         )
         results_dict_3 = fetch_remote_studies(
             test_study_list,
             test_full_details,
             test_max_samples_num_str,
             test_random_subsample,
-            _TEST_OUTPUT_DIR
+            _TEST_OUTPUT_DIR,
         )
 
         self.assertCountEqual(results_dict_2.keys(), results_dict_3.keys())
@@ -195,7 +195,7 @@ class fetchTest(unittest.TestCase):
             ]
         )
 
-        # additional valid configurations to test
+        # TODO: additional valid configurations to test
         test_quiet_yes = "--quiet"
         test_qebil_yes = "--qiita"
         test_qebil_no = "--raw"
@@ -213,7 +213,7 @@ class fetchTest(unittest.TestCase):
         test_max_samples_num = 2
         test_add_emp = "--emp-protocol"
 
-        # error modes to handle
+        # TODO: additional error modes to handle
         test_prep_max_str = "error"
         test_cpus_str = "error"
         test_max_samples = ""

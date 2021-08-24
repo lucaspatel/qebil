@@ -13,7 +13,7 @@ from qebil.commands import (
 from qebil.core import Study
 from qebil.fetch import fetch_fastqs
 from qebil.log import setup_log
-from qebil.normalize import add_emp_info
+from qebil.normalize import add_emp_info, update_preps
 from qebil.output import (
     write_config_file,
     write_metadata_files,
@@ -156,9 +156,12 @@ def check_existing_metadata(proj, output_dir="./", prefix=""):
 
     if path.isfile(qiime_md_file):
         local_md = qiime_md_file
+        # logger.info("Local QIIME file detected. Loading study from local")
     elif path.isfile(ebi_md_file):
         local_md = ebi_md_file
-
+        # logger.info(
+        #    "Local EBI metadata file detected. Loading study from local"
+        # )
     if local_md != "":
         tmp_study = Study(load_metadata(local_md), proj)
 
@@ -188,9 +191,15 @@ _project_options = [
         "--human-removal",
         is_flag=True,
         help=(
-            "On-the-fly human read removal. See documentation for settings"
+            "Experimental: On-the-fly human read removal. "
+            + " See documentation for settings"
             + " and information for other organisms."
         ),
+    ),
+    click.option(
+        "--aspera",
+        is_flag=True,
+        help=("Experimental: use aspera for download instead of ftp"),
     ),
     click.option(
         "--qiita/--raw",
@@ -209,6 +218,32 @@ _project_options = [
         is_flag=True,
         help=(
             "Fix the common issue of three reads by removing the index file."
+        ),
+    ),
+    click.option(
+        "--force-prep",
+        type=click.Choice(
+            [
+                "16S",
+                "18S",
+                "ITS",
+                "Genome_Isolate",
+                "Metagenomic",
+                "Metatranscriptomic",
+            ],
+            case_sensitive=False,
+        ),
+        help=(
+            "Overwrite the prep_info type with one of the acceptable"
+            + " Qiita data types."
+        ),
+    ),
+    click.option(
+        "--fastq-prefix",
+        default=".ebi",
+        help=(
+            "Prefix to look for before .fastq.gz when checking for"
+            + " expected number of fastq.gz files. Default is .ebi"
         ),
     ),
 ]
@@ -266,6 +301,7 @@ def fetch_project(
     prep_max,
     download_fastq,
     human_removal,
+    aspera,
     cpus,
     keep_files,
     source,
@@ -281,6 +317,8 @@ def fetch_project(
     emp_protocol,
     overwrite,
     correct_index,
+    force_prep,
+    fastq_prefix,
 ):
     """Retrieve metadata for samples from studies specified
 
@@ -419,6 +457,9 @@ def fetch_project(
     else:
         select_dict = {}
 
+    if force_prep is None:
+        force_prep = ""
+
     # intialize project_list if project ID(s) supplied
     project_list = list(ebi_id)
     metadata_list = list(metadata_file)
@@ -532,6 +573,10 @@ def fetch_project(
                     proj.populate_preps()
                     if emp_protocol:
                         proj.metadata = add_emp_info(proj.metadata)
+                    if force_prep != "":
+                        proj.metadata = update_preps(
+                            proj.metadata, force_prep
+                        )
 
                     write_qebil_info_files(
                         proj,
@@ -539,6 +584,8 @@ def fetch_project(
                         proj_prefix,
                         max_prep=prep_max,
                         update_status=False,  # suppress here, update below
+                        fastq_prefix=fastq_prefix,
+                        write_preps=False
                     )
 
                     supp_md_list = list(add_metadata_file)
@@ -553,9 +600,16 @@ def fetch_project(
                     suffix = ""
 
                 if human_removal:
-                    proj.metadata = deplete_on_the_fly(
-                        proj, cpus, output_dir, keep_files
+                    proj = deplete_on_the_fly(
+                        proj,
+                        cpus,
+                        output_dir,
+                        keep_files,
+                        prefix,
+                        prep_max,
+                        correct_index,
                     )
+                    fastq_prefix = ".filtered"
                 elif download_fastq:
                     proj.metadata = fetch_fastqs(
                         proj, output_dir, correct_index
@@ -572,4 +626,5 @@ def fetch_project(
                     suffix,
                     qiita,
                     prep_max,
+                    fastq_prefix=fastq_prefix,
                 )

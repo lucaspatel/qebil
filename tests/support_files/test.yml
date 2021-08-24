@@ -1,0 +1,7 @@
+sample_name:
+  empty: false
+  is_phi: false
+  regex: ^[a-zA-Z0-9\.]+$
+  required: true
+  type: string
+  unique: true

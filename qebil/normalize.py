@@ -7,6 +7,15 @@ import yaml
 
 from qebil.log import logger
 
+_VALID_PREP_TYPES = [
+    "16S",
+    "18S",
+    "ITS",
+    "Genome_Isolate",
+    "Metagenomic",
+    "Metatranscriptomic",
+]
+
 
 def qiimp_parser(filename):
     """Parses Qiimp-format yaml or xlsx files to obtain a dictionary of
@@ -378,7 +387,7 @@ def add_emp_info(input_df):
 
 
 def split_lat_lon(lat_lon_string, coordinate=""):
-    """ """
+    """Helper method to parse lat_lon into Qiita-friendly lat and long"""
     if "N" in lat_lon_string:
         lat = lat_lon_string.split("N")[0].strip()
         long = lat_lon_string.split("N")[-1].strip()
@@ -413,3 +422,44 @@ def split_lat_lon(lat_lon_string, coordinate=""):
         return long
     else:
         return lat_lon_string
+
+
+def update_preps(input_df, prep_type):
+    """
+    Automatically replaces the prep type for all samples with the one
+    provided
+
+    Parameters
+    ----------
+    input_df: pd.DataFrame
+        dataframe to update with EMP protocol standard information
+    prep_type: string
+        overwrite prep type to one of the valid Qiita forms:
+            "16S", "18S", "ITS", "Genome_Isolate",
+            "Metagenomic","Metatranscriptomic",
+
+    Returns
+    ----------
+    output_df: pd.DataFrame
+        dataframe with EMP protocol standard information
+    """
+    output_df = input_df.copy()
+    replace_preps = _VALID_PREP_TYPES + ["AMBIGUOUS"]
+    if prep_type not in _VALID_PREP_TYPES:
+        logger.warning(
+            "forced prep type: "
+            + prep_type
+            + " not in valid prep type list: "
+            + str(_VALID_PREP_TYPES)
+        )
+    elif "qebil_prep_file" not in output_df.columns:
+        logger.warning(
+            "No qebil_prep_file column found, skipping prep type update"
+        )
+    else:
+        for r in replace_preps:
+            output_df["qebil_prep_file"] = output_df[
+                "qebil_prep_file"
+            ].str.replace(r, prep_type)
+
+    return output_df
