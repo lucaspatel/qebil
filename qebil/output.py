@@ -162,7 +162,7 @@ def write_metadata_files(
     output_qiita=True,
     prep_max=250,
     fastq_prefix=".ebi",
-    write_preps=False
+    write_preps=True
 ):
     """Helper function for writing out metadata
 

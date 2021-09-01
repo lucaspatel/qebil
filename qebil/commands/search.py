@@ -45,7 +45,9 @@ def keyword_search(search, filter_dict={}, summarize=[]):
         + "domain=sra-study&query="
         + search
     )
+    logger.info("Searching EBI: " + url)
     search_response = requests.get(url)
+    logger.info("Response code: " + str(search_response.status_code) + "\n Content length: " + str(len(search_response.content)))
     if len(search_response.content) == 0:
         raise Exception("No studies found for search: " + search)
     else:
@@ -224,7 +226,7 @@ def search_ebi(
         select_dict = {}
 
     summary = [str(s).lower() for s in summarize]
-    query = "+".join([q.replace(" ", "+") for q in list(query)])
+    query = "%20".join([q.replace(" ","%20") for q in list(query)]).strip('"')
     search_result = keyword_search(query, select_dict, summary)
 
     search_result.to_csv(

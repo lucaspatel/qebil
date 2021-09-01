@@ -480,7 +480,7 @@ class StudyTest(unittest.TestCase):
         test_study.populate_details()
         self.assertEqual(test_study.details, test_study_dict)
 
-
+        
 if __name__ == "__main__":
     # begin the unittest.main()
     unittest.main()
