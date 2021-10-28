@@ -97,7 +97,7 @@ class metadataTest(unittest.TestCase):
             "experiment_title_specific": {
                 0: "Illumina HiSeq 4000 paired end sequencing; SARS-CoV-2-specific IgA and limited inflammatory cytokines are present in the stool of select patients with acute COVID-19"
             },
-            "run_prefix": {0: "SAMN16049500.SRR12672280"},
+            "run_prefix": {0: "SAMN16049500.SRR12672280.R"},
         }
         expected_df = pd.DataFrame.from_dict(expected_dict).set_index(
             "sample_name"

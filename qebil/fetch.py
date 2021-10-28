@@ -135,11 +135,8 @@ def fetch_fastq_files(run_prefix, ftp_dict, output_dir, expected_reads=""):
         dictionary of remote ftp files and checksums
     output_dir: string
         directory where to write the output file(s)
-    lib_layout: string
-        layout of library; single or paired
-    remove_index_file: bool
-        whether to try to identify and remove any index file
-        based on read length disparity
+    expected_reads: string
+        number of reads in expected in the downloaded file
 
     Returns
     ---------
@@ -154,14 +151,27 @@ def fetch_fastq_files(run_prefix, ftp_dict, output_dir, expected_reads=""):
     for read in ftp_dict.keys():
         skip = False
         read_num = read[-1]
-        local_fq_path = (
-            output_dir
-            + "/"
-            + run_prefix
-            + ".R"
-            + str(read_num)
-            + ".ebi.fastq.gz"
-        )
+        # to make backward compatible, check that run_prefix ends in .R
+        if run_prefix[-2:] != ".R":
+            run_prefix = run_prefix + ".R"
+
+        if read_num == 0:
+            local_fq_path = (
+                output_dir
+                + "/"
+                + run_prefix.replace(".R", "_R")
+                + str(read_num)
+                + ".ebi.fastq.gz"
+            )
+        else:
+            local_fq_path = (
+                output_dir
+                + "/"
+                + run_prefix
+                + str(read_num)
+                + ".ebi.fastq.gz"
+            )
+
         remote_fp = ftp_dict[read]["ftp"]
         remote_md5 = ftp_dict[read]["md5"]
         local_read_dict["read" + str(read_num)] = {}

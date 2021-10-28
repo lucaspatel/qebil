@@ -39,17 +39,17 @@ class OutputTest(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         # clean up the directory at the start
-        tidy_list = glob.glob(_TEST_OUTPUT_DIR + "/*.tsv")
-        for c in tidy_list:
-            if path.isfile(c):
-                remove(c)
+        #tidy_list = glob.glob(_TEST_OUTPUT_DIR + "/*.tsv")
+        #for c in tidy_list:
+        #    if path.isfile(c):
+        #         remove(c)
 
     def tearDown(self):
         self.runner = None
         # clean up the directory at the start
-        for c in _CLEANUP_LIST:
-            if path.isfile(c):
-                remove(c)
+        #for c in _CLEANUP_LIST:
+        #    if path.isfile(c):
+        #        remove(c)
 
     def test_write_config_files(self):
         test_config_file_contents = (
@@ -455,8 +455,8 @@ class OutputTest(unittest.TestCase):
             sep="\t",
             header=0,
         )
-        print("test_raw_columns:" + str(sorted(test_raw_df.columns)))
-        print("created_raw_columns:" + str(sorted(created_raw_df.columns)))
+        print("test_prep_columns:" + str(sorted(test_prep_df.columns)))
+        print("created_prep_columns:" + str(sorted(created_prep_df.columns)))
         assert_frame_equal(test_raw_df, created_raw_df)
         assert_frame_equal(test_sample_df, created_sample_df)
         assert_frame_equal(test_prep_df, created_prep_df)
@@ -465,7 +465,7 @@ class OutputTest(unittest.TestCase):
         """Tests the creation of sample and prep information files"""
         test_study = Study.from_remote(test_study_id, full_details=True)
         test_study.populate_preps()
-        # print("test_study columns: " + str(sorted(test_study.metadata.columns)))
+        print("test_study columns: " + str(sorted(test_study.metadata.columns)))
         write_qebil_info_files(
             test_study,
             _TEST_OUTPUT_DIR,
@@ -493,11 +493,11 @@ class OutputTest(unittest.TestCase):
             sep="\t",
             header=0,
         )       
-        # print("test_sample_df columns:" + str(sorted(test_sample_df.columns)))
-        # print(
-        #    "created_sample_df columns:"
-        #    + str(sorted(created_sample_df.columns))
-        # )
+        print("test_sample_df columns:" + str(sorted(test_sample_df.columns)))
+        print(
+           "created_sample_df columns:"
+           + str(sorted(created_sample_df.columns))
+        )
         assert_frame_equal(
             test_sample_df.sort_index(axis=1),
             created_sample_df.sort_index(axis=1),

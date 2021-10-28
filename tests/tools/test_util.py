@@ -366,7 +366,7 @@ class utilTest(unittest.TestCase):
             "https://www.nature.com/articles/s41598-021-83922-6.pdf"
         )
 
-        self.assertEqual(len(tokens_html), 84475)  # this changes a lot...
+        self.assertEqual(len(tokens_html), 85235)  # this changes a lot...
         self.assertEqual(len(tokens_pdf), 15771)
 
     def test_scrape_ebi_ids(self):
@@ -443,20 +443,25 @@ class utilTest(unittest.TestCase):
             "5c1da3b86d2bbb0d09e1f05cef0107f2;"
             + "fe207ea59d80b5143e142050e37bbd11"
         )
+        
+        test_fastq_bytes_string = ("411122459;446055180")
         test_unpack_result = unpack_fastq_ftp(
-            test_fastq_ftp_string, test_fastq_md5_string
+            test_fastq_ftp_string, test_fastq_md5_string, test_fastq_bytes_string , 2
         )
         test_read_dict = {
             "read_1": {
                 "ftp": test_fastq_ftp_string.split(";")[0],
                 "md5": test_fastq_md5_string.split(";")[0],
+                'bytes': 411122459
             },
             "read_2": {
                 "ftp": test_fastq_ftp_string.split(";")[1],
                 "md5": test_fastq_md5_string.split(";")[1],
+                'bytes': 446055180
             },
+            
         }
-        self.assertEqual(test_unpack_result, test_read_dict)
+        self.assertEqual(test_unpack_result[0], test_read_dict)
 
     def test_remove_index_read_file(self):
         # set up files

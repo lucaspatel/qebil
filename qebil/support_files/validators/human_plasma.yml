@@ -84,6 +84,7 @@ empo_2:
 empo_3:
   allowed:
   - Animal corpus
+  default: Animal corpus
   empty: false
   is_phi: false
   required: true
@@ -109,6 +110,7 @@ env_feature:
   required: true
   type: string
 env_material:
+  default: blood
   empty: false
   field_desc: Classification of the material being sampled, from the Environmental
     Ontology (ENVO).
@@ -154,6 +156,7 @@ host_age_units:
   required: true
   type: string
 host_body_habitat:
+  default: UBERON:blood
   empty: false
   field_desc: from UBERON e.g skin, gastrointestinal tract
   is_phi: false
@@ -174,12 +177,14 @@ host_body_mass_index:
   is_phi: false
   required: true
 host_body_product:
+  default: UBERON:blood
   empty: false
   field_desc: from UBERON e.g. skin, feces
   is_phi: false
   required: true
   type: string
 host_body_site:
+  default: UBERON:blood
   empty: false
   field_desc: from UBERON e.g. skin of arm, colon
   is_phi: false

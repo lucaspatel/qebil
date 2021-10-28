@@ -412,6 +412,7 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
         error_msg = "More than 3 read files in ftp, skipping"
     elif len(ftp_list) > layout:
         error_msg = "More read files than expected in ftp."
+        # This finds the smallest file and assigns it to read_0
         min_bytes = min(bytes_list)
         read_counter = 0
         read_num = 1
@@ -498,7 +499,7 @@ def remove_index_read_file(fastq_dict, layout):
                 logger.warning(
                     "Read length for "
                     + fastq_dict[f]["fp"]
-                    + " is non-numeric. Setting to 0."
+                    + " is non-numeric. Setting to 0 for read check."
                 )
                 read_length_dict[f] = 0
 

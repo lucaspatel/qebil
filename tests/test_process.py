@@ -34,7 +34,6 @@ class ProcessTest(unittest.TestCase):
         md = dep_study.metadata
         for index in md.index:
             run_prefix = _TEST_OUTPUT_DIR + md.at[index, "run_prefix"]
-            print(run_prefix)
             expected_raw_reads = str(md.at[index, "qebil_raw_reads"])
             expected_filtered_reads = str(
                 md.at[index, "qebil_quality_filtered_reads"]
@@ -45,13 +44,13 @@ class ProcessTest(unittest.TestCase):
             )
             expected_mb_ratio = str(md.at[index, "qebil_frac_non_host_reads"])
             actual_raw_reads = str(
-                get_read_count(run_prefix + ".R1.ebi.fastq.gz")
+                get_read_count(run_prefix + "1.ebi.fastq.gz")
             )
             actual_filtered_reads = str(
-                get_read_count(run_prefix + ".R1.fastp.fastq.gz")
+                get_read_count(run_prefix + "1.fastp.fastq.gz")
             )
             actual_mb_reads = str(
-                get_read_count(run_prefix + ".R1.filtered.fastq.gz")
+                get_read_count(run_prefix + "1.filtered.fastq.gz")
             )
             self.assertEqual(expected_raw_reads, actual_raw_reads)
             self.assertEqual(expected_filtered_reads, actual_filtered_reads)
