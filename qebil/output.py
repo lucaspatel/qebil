@@ -162,7 +162,7 @@ def write_metadata_files(
     output_qiita=True,
     prep_max=250,
     fastq_prefix=".ebi",
-    write_preps=True
+    write_preps=True,
 ):
     """Helper function for writing out metadata
 
@@ -223,7 +223,7 @@ def write_metadata_files(
                     prep_max,
                     True,
                     fastq_prefix,
-                    write_preps
+                    write_preps,
                 )
                 suffix = ".QIIME_mapping_file"
 
@@ -431,7 +431,7 @@ def write_prep_files(
             ]
             prep_df = prep_df.dropna(axis=1, how="all")
             prep_df_list = [
-                prep_df[i : i + max_prep]
+                prep_df[i: i + max_prep]
                 for i in range(0, prep_df.shape[0], max_prep)
             ]
             prep_count = 0
@@ -468,6 +468,7 @@ def write_prep_files(
                     "VALID": {"fp": valid_fp, "files": []},
                     "MISSING": {"fp": missing_fp, "files": []},
                     "TOOMANYREADS": {"fp": toomany_fp, "files": []},
+                    "READZERO": {"fp": toomany_fp, "files": []},
                 }
 
                 # set string to collect analytical notes
@@ -522,12 +523,11 @@ def write_prep_files(
                                 file_status_dict["VALID"]["files"].append(
                                     str(f)
                                 )
+
                         else:
                             logger.error("Layout is unexpected: " + layout)
+
                     elif separate_too_many:
-                        file_status_dict["TOOMANYREADS"]["files"].append(
-                            str(f)
-                        )
                         logger.warning(
                             "Too many reads files("
                             + str(len(f_list))
@@ -535,6 +535,9 @@ def write_prep_files(
                             + str(f)
                             + "with layout "
                             + layout
+                        )
+                        file_status_dict["TOOMANYREADS"]["files"].append(
+                            str(f)
                         )
                     else:
                         logger.warning(
@@ -546,6 +549,24 @@ def write_prep_files(
                         )
                         file_status_dict["VALID"]["files"].append(str(f))
 
+                    # now check for _R0 files
+                    f0 = f.replace(".R", "_R")
+                    f0_list = glob.glob(
+                        output_dir
+                        + str(f0)
+                        + "*"
+                        + fastq_prefix
+                        + ".fastq.gz"
+                    )
+                    if (
+                        len(f0_list) >= 1
+                    ):  # in case we want to accept >3 reads later
+                        logger.warning(
+                            "_R0 file found."
+                            + " Will write to separate prep info file."
+                        )
+                        file_status_dict["READZERO"]["files"].append(str(f))
+
                 # see if there are valid files first
                 valid_fp = file_status_dict["VALID"]["fp"]
                 if path.isfile(valid_fp):
@@ -555,6 +576,7 @@ def write_prep_files(
                         file_status_dict["VALID"]["files"]
                     )
                 ]
+
                 if len(valid_df) > 0:
                     # update as complete
                     if not valid_prep and update_status:
@@ -573,36 +595,59 @@ def write_prep_files(
                         index_label="sample_name",
                     )
 
+                # now handle _R0, so see if there are read zero files first
+                r0_fp = file_status_dict["READZERO"]["fp"]
+
+                if path.isfile(r0_fp):
+                    remove(file_status_dict["READZERO"]["fp"])
+                r0_df = prep[
+                    prep["run_prefix"].isin(
+                        file_status_dict["READZERO"]["files"]
+                    )
+                ]
+                r0_df["run_prefix"] = r0_df["run_prefix"].apply(
+                    lambda x: x.replace(".R", "_R")
+                )
+
+                if len(r0_df) > 0:
+                    r0_df.to_csv(
+                        r0_fp,
+                        sep="\t",
+                        index=True,
+                        index_label="sample_name",
+                    )
+
+                # remove VALID and READZERO to avoid confusion
+                file_status_dict.pop("VALID", None)
+                file_status_dict.pop("READZERO", None)
+
                 for k in file_status_dict.keys():
-                    if k != "VALID":
-                        # add loop to cleanup previous files to avoid confusion
-                        output_fp = file_status_dict[k]["fp"]
-                        if path.isfile(output_fp):
-                            remove(file_status_dict[k]["fp"])
+                    # add loop to cleanup previous files to avoid confusion
+                    output_fp = file_status_dict[k]["fp"]
+                    if path.isfile(output_fp):
+                        remove(file_status_dict[k]["fp"])
 
-                        subset_df = prep[
-                            prep["run_prefix"].isin(
-                                file_status_dict[k]["files"]
-                            )
-                        ]
+                    subset_df = prep[
+                        prep["run_prefix"].isin(file_status_dict[k]["files"])
+                    ]
 
-                        if len(subset_df) > 0:
-                            if update_status:
-                                update_qebil_status(
-                                    output_dir,
-                                    file_prefix,
-                                    "with issue: "
-                                    + k
-                                    + " files for "
-                                    + prep_file
-                                    + "\n",
-                                )
-                            subset_df.to_csv(
-                                output_fp,
-                                sep="\t",
-                                index=True,
-                                index_label="sample_name",
+                    if len(subset_df) > 0:
+                        if update_status:
+                            update_qebil_status(
+                                output_dir,
+                                file_prefix,
+                                "with issue: "
+                                + k
+                                + " files for "
+                                + prep_file
+                                + "\n",
                             )
+                        subset_df.to_csv(
+                            output_fp,
+                            sep="\t",
+                            index=True,
+                            index_label="sample_name",
+                        )
 
                 prep_count += 1
 

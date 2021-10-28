@@ -39,7 +39,7 @@ _QEBIL_PREP_INFO_COLUMNS = [
     "experiment_title_specific",
     "library_name",
     "qebil_prep_file",
-    'experiment_design_description',
+    "experiment_design_description",
 ]
 
 
@@ -56,7 +56,7 @@ _QEBIL_COLUMNS = [
     "local_fastq_md5",
     "fastq_ftp",
     "fastq_md5",
-    'fastq_bytes',
+    "fastq_bytes",
     "qebil_notes",
 ]
 
@@ -585,6 +585,7 @@ class Study:
                     lib_subset["sample_name"]
                     + "."
                     + lib_subset[run_accession]
+                    + ".R"
                 )
             elif "library_name" in md.keys():
                 # users like to put their helpful info here
@@ -598,6 +599,7 @@ class Study:
                         lib_subset["sample_name"]
                         + "."
                         + lib_subset[run_accession]
+                        + ".R"
                     )
                 else:
                     # fall back to sample + run id
@@ -606,14 +608,16 @@ class Study:
                         + "."
                         + lib_subset[run_accession]
                     )
-                    lib_subset["run_prefix"] = lib_subset["sample_name"]
+                    lib_subset["run_prefix"] = (
+                        lib_subset["sample_name"] + ".R"
+                    )
             else:
                 # fall back to sample + run id
                 lib_subset["sample_name"] = (
                     lib_subset[identifier] + "." + lib_subset[run_accession]
                 )
                 # in this case sample_name and run_prefix are the same
-                lib_subset["run_prefix"] = lib_subset["sample_name"]
+                lib_subset["run_prefix"] = lib_subset["sample_name"] + ".R"
 
             lib_dfs_to_combine.append(lib_subset)
 

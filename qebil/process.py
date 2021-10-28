@@ -145,8 +145,8 @@ def deplete_on_the_fly(
                 if str(filtered_reads).isnumeric():
                     # need to correct number based on layout since
                     # fastp provides R1+R2 reads as total reads
-                    filtered_reads = (
-                        int(int(filtered_reads) / int(expected_num_read_files))
+                    filtered_reads = int(
+                        int(filtered_reads) / int(expected_num_read_files)
                     )
 
                     md.at[index, "qebil_frac_reads_passing_filter"] = int(
@@ -184,7 +184,10 @@ def deplete_on_the_fly(
                 )
             else:
                 # this value should only be set if host filtering finished
-                if not str(mb_reads).isnumeric() and str(filtered_reads).isnumeric():
+                if (
+                    not str(mb_reads).isnumeric()
+                    and str(filtered_reads).isnumeric()
+                ):
                     md.at[index, "qebil_non_host_reads"] = run_host_depletion(
                         run_prefix,
                         filtered_reads,
@@ -272,10 +275,10 @@ def run_fastp(
         makedirs(fastp_dir)
 
     forward_reads = glob.glob(
-        output_dir + run_prefix + ".R1" + raw_suffix + ".fastq.gz"
+        output_dir + run_prefix + "1" + raw_suffix + ".fastq.gz"
     )
     reverse_reads = glob.glob(
-        output_dir + run_prefix + ".R2" + raw_suffix + ".fastq.gz"
+        output_dir + run_prefix + "2" + raw_suffix + ".fastq.gz"
     )
 
     if len(forward_reads) == 0:
@@ -284,7 +287,7 @@ def run_fastp(
             + output_dir
             + "/"
             + run_prefix
-            + ".R1"
+            + "1"
             + raw_suffix
             + ".fastq.gz"
         )
@@ -294,7 +297,7 @@ def run_fastp(
             + output_dir
             + "/"
             + run_prefix
-            + ".R1"
+            + "1"
             + raw_suffix
             + ".fastq.gz"
         )
@@ -438,10 +441,10 @@ def run_host_depletion(
     mb_reads = "minimap2 error"
 
     forward_reads = glob.glob(
-        output_dir + "/" + run_prefix + ".R1.fastp.fastq.gz"
+        output_dir + "/" + run_prefix + "1.fastp.fastq.gz"
     )
     reverse_reads = glob.glob(
-        output_dir + "/" + run_prefix + ".R2.fastp.fastq.gz"
+        output_dir + "/" + run_prefix + "2.fastp.fastq.gz"
     )
 
     if len(forward_reads) == 0:
