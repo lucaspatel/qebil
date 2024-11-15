@@ -296,6 +296,10 @@ class Study:
         if not study_accession:
             logger.error("No matching study ID found for " + ebi_accession)
             self.study_id = "not provided"
+            retrieved_details = True
+            self.study_id = ebi_accession
+            self.proj_id = ebi_accession
+
         else:  # consider simplifying loop to display info by default
             if study_accession == ebi_accession:
                 logger.info(
@@ -333,6 +337,11 @@ class Study:
             else:
                 logger.error("No EBI entry found for " + str(ebi_accession))
 
+        print ('--------------------------------')
+        print ('--------------------------------')
+        print (retrieved_details, full_details)
+        print ('--------------------------------')
+        print ('--------------------------------')
         if retrieved_details:
             logger.info(
                 "Study info retrieved for"
@@ -380,6 +389,7 @@ class Study:
             # the Study.metadata
             sample_accession = row[identifier]
             sample_xml_dict = fetch_ebi_info(sample_accession)
+            print (sample_xml_dict)
 
             if "SAMPLE_SET" not in sample_xml_dict.keys():
                 logger.warning(
@@ -390,9 +400,14 @@ class Study:
             else:
                 # add sample specific information
                 sample_xml_dict = sample_xml_dict["SAMPLE_SET"]["SAMPLE"]
-                self.metadata.at[
-                    index, "sample_title_specific"
-                ] = sample_xml_dict["TITLE"]
+                if 'TITLE' in sample_xml_dict:
+                    self.metadata.at[
+                            index, "sample_title_specific"
+                    ] = sample_xml_dict["TITLE"]
+                else:
+                    self.metadata.at[
+                            index, "sample_title_specific"
+                    ] = 'MISSING TITLE'
 
                 sn = sample_xml_dict["SAMPLE_NAME"]
                 for s in sn.keys():

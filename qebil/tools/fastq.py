@@ -133,7 +133,7 @@ def blast_for_type(fastq_file, db_dict={}):
     """
     if len(db_dict) == 0:  # assume we're on barnacle
         barnacle_fp = (
-            "/panfs/panfs1.ucsd.edu/panscratch/qiita/qebil/databases/blast/"
+            "/qmounts/qiita_data/working_dir/qebil/dbs/"
         )
         db_dict = {
             "16S": barnacle_fp + "16S_ribosomal_RNA",
@@ -149,6 +149,7 @@ def blast_for_type(fastq_file, db_dict={}):
     # now query via blastn to find best match
     match = "AMBIGUOUS"
     min_eval = 1
+    db_dict = dict()
 
     for db_type in db_dict.keys():
         db = db_dict[db_type]

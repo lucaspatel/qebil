@@ -7,6 +7,7 @@ import re
 import requests
 from shutil import move
 import urllib
+from time import sleep
 
 from qebil.tools.fastq import get_read_length, get_read_count
 
@@ -65,6 +66,7 @@ def get_checksum(filepath, compare_md5=""):
     """
 
     if path.isfile(filepath):
+        logger.warning(f'==> {filepath} get_checksum')
         fq = open(filepath, "rb")
         fq_contents = fq.read()
         fq.close()
@@ -305,8 +307,16 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
         "title": null_val,
         "seq_method": [],
     }
+    print(xml_dict)
+    if "STUDY_SET" in xml_dict:
+        parse_dict = xml_dict["STUDY_SET"]["STUDY"]
+    elif "PROJECT_SET" in xml_dict:
+        parse_dict = xml_dict["PROJECT_SET"]["PROJECT"]
+    elif "SAMPLE_SET" in xml_dict:
+        parse_dict = xml_dict["SAMPLE_SET"]["SAMPLE"]
+    else:
+        parse_dict = xml_dict["RUN_SET"]["RUN"]
 
-    parse_dict = xml_dict["STUDY_SET"]["STUDY"]
     if "DESCRIPTOR" not in parse_dict.keys():
         logger.warning(
             "No DESCRIPTOR values found. Using " + null_val + " for values."

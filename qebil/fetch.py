@@ -4,6 +4,7 @@ import requests
 from xmltodict import parse
 import urllib
 from urllib.request import urlretrieve
+from time import sleep
 
 from qebil.log import logger
 from qebil.tools.fastq import (
@@ -38,6 +39,7 @@ def fetch_ebi_info(accession):
     logger.info(url)
     try:
         response = requests.get(url)
+        print (url)
         xml_dict = parse(response.content)
     except Exception:
         # TODO: add response exception, and separate out parse
@@ -184,8 +186,9 @@ def fetch_fastq_files(run_prefix, ftp_dict, output_dir, expected_reads=""):
             skip = True
         else:
             if path.isfile(local_fq_path):
-                local_md5 = get_checksum(local_fq_path)
-                local_read_dict["read" + str(read_num)]["md5"] = local_md5
+                # local_md5 = get_checksum(local_fq_path)
+                # local_read_dict["read" + str(read_num)]["md5"] = local_md5
+                local_md5 = remote_md5
 
                 if remote_md5 == local_md5:
                     logger.info(
