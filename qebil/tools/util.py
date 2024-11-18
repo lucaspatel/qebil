@@ -307,7 +307,8 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
         "title": null_val,
         "seq_method": [],
     }
-    print(xml_dict)
+    logger.warning("xml_dict", xml_dict)
+    logger.warning(xml_dict)
     if "STUDY_SET" in xml_dict:
         parse_dict = xml_dict["STUDY_SET"]["STUDY"]
     elif "PROJECT_SET" in xml_dict:
@@ -317,14 +318,20 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
     else:
         parse_dict = xml_dict["RUN_SET"]["RUN"]
 
-    if "DESCRIPTOR" not in parse_dict.keys():
-        logger.warning(
-            "No DESCRIPTOR values found. Using " + null_val + " for values."
-        )
-        return result_dict
-    else:
-        desc_dict = parse_dict["DESCRIPTOR"]
+    logger.warning("MEEP")
+    logger.warning("parse_dict")
+    logger.warning(parse_dict)
 
+    # TODO: decide if this is necessary
+    #if "DESCRIPTOR" not in parse_dict.keys():
+    #    logger.warning(
+    #        "No DESCRIPTOR values found. Using " + null_val + " for values."
+    #    )
+    #    return result_dict
+    #else:
+    #    desc_dict = parse_dict["DESCRIPTOR"]
+    desc_dict = parse_dict
+    
     if len(desc_dict) > 0:
         if "STUDY_ABSTRACT" in desc_dict.keys():
             result_dict["abstract"] = desc_dict["STUDY_ABSTRACT"]
