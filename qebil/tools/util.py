@@ -418,7 +418,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
     error_msg = ""
     ftp_list = fastq_ftp.split(sep)
     md5_list = fastq_md5.split(sep)
-    bytes_list = [int(b) for b in fastq_bytes.split(sep)]
+    if fastq_bytes != "not provided":
+        bytes_list = [int(b) for b in fastq_bytes.split(sep)]
 
     if len(ftp_list) == 0:
         error_msg = (
@@ -437,7 +438,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
             read_dict = {}
             read_dict["ftp"] = ftp_list[read_counter]
             read_dict["md5"] = md5_list[read_counter]
-            read_dict["bytes"] = bytes_list[read_counter]
+            if fastq_bytes != "not provided":
+                read_dict["bytes"] = bytes_list[read_counter]
             read_counter += 1
             if read_dict["bytes"] == min_bytes:
                 remote_dict["read_0"] = read_dict
@@ -452,7 +454,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
             read_dict = {}
             read_dict["ftp"] = ftp_list[read_counter]
             read_dict["md5"] = md5_list[read_counter]
-            read_dict["bytes"] = bytes_list[read_counter]
+            if fastq_bytes != "not provided":
+                read_dict["bytes"] = bytes_list[read_counter]
             read_counter += 1
             remote_dict["read_" + str(read_counter)] = read_dict
 

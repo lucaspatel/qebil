@@ -39,17 +39,13 @@ def fetch_ebi_info(accession):
     logger.info(url)
     try:
         response = requests.get(url)
-        print (url)
+        logger.debug(f"URL is: {url}")
         xml_dict = parse(response.content)
+        logger.debug(f"XML dict is: {xml_dict}")
     except Exception:
         # TODO: add response exception, and separate out parse
         logger.error(
-            "Could not obtain EBI information for "
-            + str(accession)
-            + " at URL: "
-            + url
-            + " . Please check connection and"
-            + " accession id and try again."
+            f"Could not obtain EBI information for {accession} at URL: {url}. Please check connection and accession id and try again."
         )
 
     return xml_dict
@@ -328,6 +324,7 @@ def fetch_fastqs(study, output_dir, overwrite=False):
                 skip = True
 
         if len(run_prefix) > 0 and not skip:
+            logger.debug("Row is: " + str(row))
             layout = str(row["library_layout"]).lower()
             if layout in layout_dict.keys():
                 expected_num_read_files = layout_dict[layout]
@@ -338,7 +335,7 @@ def fetch_fastqs(study, output_dir, overwrite=False):
             ebi_dict, error = unpack_fastq_ftp(
                 fp_string, md5_string, bytes_string, expected_num_read_files
             )
-
+            logger.debug("ebi_dict: " + str(ebi_dict))
             if len(ebi_dict) == 0:
                 logger.warning(
                     "No fastq files to download found for\n" + run_prefix
