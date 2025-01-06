@@ -7,6 +7,7 @@ import re
 import requests
 from shutil import move
 import urllib
+from time import sleep
 
 from qebil.tools.fastq import get_read_length, get_read_count
 
@@ -65,6 +66,7 @@ def get_checksum(filepath, compare_md5=""):
     """
 
     if path.isfile(filepath):
+        logger.warning(f'==> {filepath} get_checksum')
         fq = open(filepath, "rb")
         fq_contents = fq.read()
         fq.close()
@@ -305,16 +307,31 @@ def parse_details(xml_dict, null_val="XXEBIXX"):
         "title": null_val,
         "seq_method": [],
     }
-
-    parse_dict = xml_dict["STUDY_SET"]["STUDY"]
-    if "DESCRIPTOR" not in parse_dict.keys():
-        logger.warning(
-            "No DESCRIPTOR values found. Using " + null_val + " for values."
-        )
-        return result_dict
+    logger.warning("xml_dict", xml_dict)
+    logger.warning(xml_dict)
+    if "STUDY_SET" in xml_dict:
+        parse_dict = xml_dict["STUDY_SET"]["STUDY"]
+    elif "PROJECT_SET" in xml_dict:
+        parse_dict = xml_dict["PROJECT_SET"]["PROJECT"]
+    elif "SAMPLE_SET" in xml_dict:
+        parse_dict = xml_dict["SAMPLE_SET"]["SAMPLE"]
     else:
-        desc_dict = parse_dict["DESCRIPTOR"]
+        parse_dict = xml_dict["RUN_SET"]["RUN"]
 
+    logger.warning("MEEP")
+    logger.warning("parse_dict")
+    logger.warning(parse_dict)
+
+    # TODO: decide if this is necessary
+    #if "DESCRIPTOR" not in parse_dict.keys():
+    #    logger.warning(
+    #        "No DESCRIPTOR values found. Using " + null_val + " for values."
+    #    )
+    #    return result_dict
+    #else:
+    #    desc_dict = parse_dict["DESCRIPTOR"]
+    desc_dict = parse_dict
+    
     if len(desc_dict) > 0:
         if "STUDY_ABSTRACT" in desc_dict.keys():
             result_dict["abstract"] = desc_dict["STUDY_ABSTRACT"]
@@ -401,7 +418,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
     error_msg = ""
     ftp_list = fastq_ftp.split(sep)
     md5_list = fastq_md5.split(sep)
-    bytes_list = [int(b) for b in fastq_bytes.split(sep)]
+    if fastq_bytes != "not provided":
+        bytes_list = [int(b) for b in fastq_bytes.split(sep)]
 
     if len(ftp_list) == 0:
         error_msg = (
@@ -420,7 +438,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
             read_dict = {}
             read_dict["ftp"] = ftp_list[read_counter]
             read_dict["md5"] = md5_list[read_counter]
-            read_dict["bytes"] = bytes_list[read_counter]
+            if fastq_bytes != "not provided":
+                read_dict["bytes"] = bytes_list[read_counter]
             read_counter += 1
             if read_dict["bytes"] == min_bytes:
                 remote_dict["read_0"] = read_dict
@@ -435,7 +454,8 @@ def unpack_fastq_ftp(fastq_ftp, fastq_md5, fastq_bytes, layout, sep=";"):
             read_dict = {}
             read_dict["ftp"] = ftp_list[read_counter]
             read_dict["md5"] = md5_list[read_counter]
-            read_dict["bytes"] = bytes_list[read_counter]
+            if fastq_bytes != "not provided":
+                read_dict["bytes"] = bytes_list[read_counter]
             read_counter += 1
             remote_dict["read_" + str(read_counter)] = read_dict
 

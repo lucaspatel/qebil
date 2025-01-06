@@ -147,6 +147,7 @@ def write_config_file(xml_dict, prefix="", null_val="XXEBIXX"):
         "%", "%%"
     )  # need to avoid % sign
 
+    print(desc_dict)
     title = desc_dict["title"].replace("%", "%%")  # need to avoid % sign
 
     # Write out files
